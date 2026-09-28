@@ -1,6 +1,6 @@
 # HNU DASH — Web Application Specification & Architecture
 
-This document outlines the architecture, data models, multi-tenant role system, navigation structure, and UI workflows for the **HNU DASH Web Application** (`apps/web`).
+This document outlines the architecture, data models, multi-tenant role system, navigation structure, UI workflows, and DRY directory structure for the **HNU DASH Web Application** (`apps/web`).
 
 ---
 
@@ -82,99 +82,126 @@ To provide an intuitive experience without confusing the user's personal student
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### Contextual Workspaces
+---
 
-#### A. Universal Student Portal
-* **Upcoming Events Calendar:** 
-  - Dynamic monthly/weekly/agenda calendar aggregating events across all organizations the student belongs to.
-  - Automatically filters based on the student's degree course and `target_year_levels`.
-* **Personal Attendance & Clearance:**
-  - Complete history of attended vs. missed events.
-  - Check-in/check-out timestamps (`time_in`, `time_out`) and statuses (`present`, `late`, `excused`).
-  - Itemized missed-scan penalties and overall semester clearance compliance.
+## 5. DRY File Structure & Modular Architecture
 
-#### B. Organization Workspace (Activated by selecting an org under "Your Organizations:")
-The view adapts based on the user's role in the selected organization:
+To uphold the **DRY (Don't Repeat Yourself)** principle, ensure high reusability, and prevent code bloat, code is organized into strict functional layers under `apps/web/src`:
 
-1. **When User is an `Admin` in the Organization:**
-   * **Event Management:** 
-     - Create and edit events.
-     - Configure early call-time windows for officers (`officer_in_start/end`, `officer_out_start/end`) and regular attendee windows (`attendance_in_start/end`, `attendance_out_start/end`).
-     - Set missed-scan fine rates for students vs. officers.
-     - Define audience scope (all members or target year levels).
-   * **Scanner Delegation (`event_assigned_scanners`):** 
-     - Select eligible officers from the roster and grant them scanner privileges for specific events.
-     - Revoke or reassign scanner duty.
-   * **Attendance Review & Finalization:**
-     - Audit live sync transactions.
-     - Perform manual status overrides (e.g., mark as `excused` with notes).
-     - Finalize event rosters to generate official records.
-   * **Member Roster:** View and manage members enrolled under the organization.
-
-2. **When User is an `Officer` in the Organization:**
-   * **Assigned Scanner Duty:** View events where the officer has been delegated scanner authority.
-   * **Officer Call Times:** Detailed agenda displaying mandatory call times, egress windows, and higher officer fine requirements.
-   * **Scanner Launchpad:** Web fallback scanner (camera/barcode input) accessible only if assigned in `event_assigned_scanners`.
-
-3. **When User is a `Student` (Member) in the Organization:**
-   * **Organization Feed:** Org-specific announcements and event notices.
-   * **Club Compliance:** Attendance records and fine status specifically attributable to this organization.
-
-#### C. Adviser / Global Admin Workspace (`profiles.role === 'admin'`)
-* Overview of all campus organizations.
-* Ability to create organizations and assign/appoint student organization admins.
-* University-wide attendance auditing and clearance reporting.
+```text
+apps/web/src/
+├── app/                                    # Next.js App Router routes & pages
+│   ├── (student)/                          # Universal student portal pages
+│   │   ├── portal/
+│   │   │   ├── page.tsx                    # Overview & compliance summary
+│   │   │   ├── calendar/page.tsx           # Multi-org upcoming events calendar
+│   │   │   └── attendance/page.tsx         # Attended vs. missed history & dues
+│   ├── (management)/                       # Organization-scoped workspaces
+│   │   └── orgs/
+│   │       └── [orgId]/
+│   │           ├── layout.tsx              # Tenant shell with persistent sidebar
+│   │           ├── page.tsx                # Organization dashboard
+│   │           ├── events/
+│   │           │   ├── page.tsx            # Event list & management table
+│   │           │   ├── new/page.tsx        # Event creation (call times, fines)
+│   │           │   └── [eventId]/
+│   │           │       ├── page.tsx        # Event details & live stream
+│   │           │       ├── scanners/       # Officer scanner duty assignment
+│   │           │       └── review/         # Attendance review & finalization
+│   │           └── members/page.tsx        # Organization roster & roles
+│   ├── (adviser)/                          # Adviser / Superadmin administration
+│   │   └── adviser/
+│   │       └── organizations/page.tsx      # Org management & admin appointment
+│   ├── scanner/
+│   │   └── [eventId]/page.tsx              # Web fallback scanner
+│   ├── layout.tsx                          # Root layout & providers
+│   └── globals.css                         # Tailwind CSS v4 styling & variables
+│
+├── components/                             # Reusable UI component library
+│   ├── ui/                                 # Low-level primitive design system components
+│   │   ├── button.tsx                      # Buttons with variants (primary, secondary, danger)
+│   │   ├── input.tsx                       # Text, search, number, and time inputs
+│   │   ├── badge.tsx                       # Status chips (Present, Late, Excused, Admin, Officer)
+│   │   ├── card.tsx                        # Container cards with consistent shadows & borders
+│   │   ├── modal.tsx                       # Accessible modal dialogs and overlays
+│   │   ├── table.tsx                       # Responsive, styled data tables with pagination
+│   │   ├── dropdown.tsx                    # Dropdowns and select menus
+│   │   └── skeleton.tsx                    # Loading placeholder skeletons
+│   ├── layout/                             # Application shell & navigation components
+│   │   ├── sidebar.tsx                     # Main navigation sidebar
+│   │   ├── your-organizations-list.tsx     # "Your Organizations:" list with role badges
+│   │   ├── header.tsx                      # Top bar with user profile & quick actions
+│   │   └── breadcrumbs.tsx                 # Dynamic hierarchical page navigation
+│   ├── portal/                             # Student-facing domain components
+│   │   ├── event-calendar.tsx              # Interactive calendar (month/week/agenda)
+│   │   ├── attendance-history-table.tsx    # Table of attended vs. missed events
+│   │   ├── clearance-gauge.tsx             # Attendance compliance & fine summary card
+│   │   └── upcoming-event-card.tsx         # Event preview card with time countdown
+│   └── orgs/                               # Organization management domain components
+│       ├── event-table.tsx                 # Management table with filter & lifecycle states
+│       ├── event-form.tsx                  # Event creation/edit form (call times & fines)
+│       ├── scanner-assignment-modal.tsx    # Modal to delegate scanner officers
+│       └── attendance-review-table.tsx     # Real-time scan auditing & manual override
+│
+├── lib/                                    # Core type definitions & constants
+│   ├── definitions.ts                      # Strict TypeScript interfaces, enums, & types
+│   └── constants.ts                        # System constants (year levels, courses, scan types)
+│
+├── utils/                                  # Pure, reusable utility functions
+│   ├── formatters.ts                       # Date, time window, PHP currency, and student ID formatters
+│   ├── validators.ts                       # Event window validation & input sanitation
+│   └── cn.ts                               # ClassName concatenation and merging utility
+│
+├── supabase/                               # Supabase data access layer
+│   ├── client.ts                           # Client-side Supabase browser client
+│   ├── server.ts                           # Server-side Supabase client for SSR & Server Actions
+│   ├── data/                               # READ operations (Queries / Fetchers)
+│   │   ├── events.ts                       # fetchEventsByOrg, fetchUpcomingEventsForStudent
+│   │   ├── organizations.ts                # fetchUserOrganizations, fetchOrgDetails
+│   │   ├── attendance.ts                   # fetchStudentAttendanceLogs, fetchEventAuditLogs
+│   │   ├── members.ts                      # fetchOrgMembers, fetchEligibleScanners
+│   │   └── profile.ts                      # fetchUserProfileWithMemberships
+│   └── actions/                            # WRITE operations (Server Actions / Mutations)
+│       ├── event-actions.ts                # createEvent, updateEvent, finalizeEvent
+│       ├── scanner-actions.ts              # assignScannerDuty, revokeScannerDuty
+│       ├── attendance-actions.ts           # recordAttendanceScan, overrideAttendanceStatus
+│       └── member-actions.ts               # updateMemberRole, enrollMember
+│
+├── hooks/                                  # Custom reusable React hooks
+│   ├── use-org-permissions.ts              # Resolves capabilities (canManage, canScan, etc.)
+│   ├── use-active-org.ts                   # Retrieves currently selected organization context
+│   └── use-calendar.ts                     # Month/week pagination & date calculations
+│
+└── context/                                # React Context Providers
+    ├── org-context.tsx                     # Active organization provider & switcher state
+    └── auth-context.tsx                    # User identity & multi-tenant memberships provider
+```
 
 ---
 
-## 5. Technical Implementation Details
+## 6. Layer Responsibilities & DRY Rules
 
-### Technology Stack
-- **Framework:** Next.js 16 (App Router with Turbopack)
-- **UI Library:** React 19
-- **Language:** TypeScript 5 (Strict Mode)
-- **Styling:** Tailwind CSS v4 & PostCSS
-- **Testing:** Vitest, React Testing Library, and JSDOM
-- **Linting:** ESLint 9 (Flat Config)
-- **Backend / Database:** Supabase / PostgreSQL (Row Level Security enforced)
+### 1. `lib/definitions.ts` (Single Source of Types)
+All database entity models, join queries, DTOs, and view models are defined here once and exported across the app. Components and server actions must import from `@/lib/definitions` rather than redefining inline types.
 
-### Proposed Route Map (`apps/web/src/app`)
+### 2. `utils/` (Pure Reusable Logic)
+- **`formatters.ts`:**
+  - Date & time window ranges: formats `event_start` and `attendance_in_start/end` into human-readable strings (e.g., `8:00 AM – 9:00 AM`).
+  - Currency: formats fines into Philippine Peso (e.g., `₱50.00`).
+  - Student IDs: formats IDs cleanly (e.g., `21-1234-567`).
+- **`validators.ts`:**
+  - Validates that `attendance_in_start < attendance_in_end <= event_start`, and officer call times precede attendee windows.
 
-```text
-apps/web/src/app/
-├── layout.tsx                              # Root layout with providers
-├── globals.css                             # Tailwind v4 theme and styling
-│
-├── (student)/                              # Universal Student Space
-│   ├── portal/
-│   │   ├── page.tsx                        # Student dashboard & clearance status
-│   │   ├── calendar/page.tsx               # Unified multi-org upcoming calendar
-│   │   └── attendance/page.tsx             # Attendance history (attended/missed/fines)
-│
-├── (management)/                           # Tenant-Scoped Workspaces
-│   └── orgs/
-│       └── [orgId]/
-│           ├── layout.tsx                  # Org shell with sidebar & active org context
-│           ├── page.tsx                    # Org overview / dashboard
-│           ├── events/
-│           │   ├── page.tsx                # Event list & management table
-│           │   ├── new/page.tsx            # Event creation (windows, fines, year levels)
-│           │   └── [eventId]/
-│           │       ├── page.tsx            # Event details & live attendance feed
-│           │       ├── scanners/page.tsx   # Officer scanner duty assignment
-│           │       └── review/page.tsx     # Attendance reconciliation & finalization
-│           └── members/page.tsx            # Organization roster
-│
-├── (adviser)/                              # Global Adviser Tools
-│   └── adviser/
-│       └── organizations/page.tsx          # Manage orgs & appoint student admins
-│
-└── scanner/
-    └── [eventId]/page.tsx                  # Web scanner (verifies event_assigned_scanners)
-```
+### 3. `supabase/data/` vs. `supabase/actions/` (Separation of Read & Write)
+- **`data/` (Queries):** Contains all data fetching functions (cached or server-side). They only read from the database and return typed definitions.
+- **`actions/` (Mutations):** Contains Next.js Server Actions for modifying data (`POST`, `PUT`, `DELETE`). They handle authorization verification, execute transactions, and trigger revalidation (`revalidatePath`).
 
-### Permission Strategy (`useOrgPermissions`)
-Instead of scattered inline string comparisons, components leverage a typed capability hook:
+### 4. `components/ui/` vs. Domain Components
+- Primitive components in `components/ui/` are generic and uncoupled from business logic (e.g., `<Button>`, `<Modal>`, `<Table>`).
+- Domain components in `components/portal/` or `components/orgs/` compose these primitives to display business entities.
+
+### 5. `hooks/use-org-permissions.ts`
+Centralizes capability checks so that components never perform fragile string comparisons:
 
 ```typescript
 export interface OrgPermissions {
@@ -188,7 +215,7 @@ export interface OrgPermissions {
 
 ---
 
-## 6. Development & Verification Workflow
+## 7. Development & Verification Workflow
 
 From `apps/web`:
 
