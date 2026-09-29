@@ -179,6 +179,28 @@ export interface StudentAttendanceRecord {
 }
 
 /**
+ * Breakdown of clearance status for a student per organization.
+ */
+export interface OrganizationClearanceSummary {
+  organization: Pick<Organization, 'id' | 'name' | 'code'>;
+  total_events: number;
+  attended_events: number;
+  missed_events: number;
+  total_fines: number;
+  status: 'cleared' | 'pending_fines';
+}
+
+/**
+ * Aggregated clearance status across all enrolled organizations for a student.
+ */
+export interface StudentClearanceStatus {
+  student: Profile;
+  overall_status: 'cleared' | 'action_required';
+  total_fines: number;
+  organization_breakdowns: OrganizationClearanceSummary[];
+}
+
+/**
  * Granular capability permissions within an organization context.
  * Used by UI components instead of checking raw role strings.
  */

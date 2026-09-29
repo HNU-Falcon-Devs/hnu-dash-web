@@ -15,7 +15,8 @@ describe("Home Page & AppShell", () => {
       screen.getByRole("heading", { level: 1, name: "HNU DASH" })
     ).toBeInTheDocument();
     expect(screen.getByText("Your Organizations:")).toBeInTheDocument();
-    expect(screen.getByText("Upcoming Events (All Organizations)")).toBeInTheDocument();
+    expect(screen.getByText("Upcoming Events & Attendance Windows")).toBeInTheDocument();
+    expect(screen.getByText("Semester Clearance Status")).toBeInTheDocument();
     expect(screen.getAllByText(/Juan Dela Cruz/i).length).toBeGreaterThanOrEqual(1);
   });
 

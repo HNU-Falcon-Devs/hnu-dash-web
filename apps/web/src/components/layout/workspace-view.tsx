@@ -8,16 +8,23 @@ import { TenantRoleBadge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Modal } from '@/components/ui/modal';
-import { formatCurrencyPHP, formatDateTime, formatTargetYearLevels, formatTimeRange } from '@/utils/formatters';
-import { MOCK_STUDENT_ATTENDANCE } from '@/lib/mock-data';
+import { formatCurrencyPHP, formatDateTime, formatTimeRange } from '@/utils/formatters';
 import type { EventWithDetails } from '@/lib/definitions';
 import { getAllEvents } from '@/supabase/data/events';
+import {
+  getStudentAttendanceRecords,
+  getStudentClearanceStatus,
+  getStudentUpcomingEvents,
+} from '@/supabase/data/student-portal';
 import { EventFormModal } from '@/components/orgs/event-form-modal';
 import { ScannerAssignmentModal } from '@/components/orgs/scanner-assignment-modal';
 import { AttendanceReviewModal } from '@/components/orgs/attendance-review-modal';
+import { StudentClearanceSummary } from '@/components/portal/student-clearance-summary';
+import { StudentAttendanceTable } from '@/components/portal/student-attendance-table';
+import { StudentEventsFeed } from '@/components/portal/student-events-feed';
 
 export function WorkspaceView() {
-  const { userProfile } = useAuth();
+  const { userProfile, userMemberships } = useAuth();
   const { activeMembership, isStudentPortalActive, permissions, selectOrg } = useOrg();
 
   // Modals State
@@ -38,16 +45,19 @@ export function WorkspaceView() {
     ? events.filter((e) => e.organization_id === activeMembership.organization.id)
     : [];
 
-  const allUpcomingEvents = events;
-
   // -------------------------------------------------------------
   // VIEW 1: Universal Student Portal
   // -------------------------------------------------------------
   if (isStudentPortalActive) {
-    const totalDues = MOCK_STUDENT_ATTENDANCE.reduce(
-      (sum, item) => sum + item.fine_amount,
-      0
+    const studentRecords = getStudentAttendanceRecords(userProfile.id);
+    const studentClearance = getStudentClearanceStatus(userProfile, userMemberships);
+    const enrolledOrgIds = userMemberships.map((m) => m.organization.id);
+    const studentUpcomingEvents = getStudentUpcomingEvents(
+      userProfile.year_level,
+      enrolledOrgIds
     );
+
+    const isCleared = studentClearance.overall_status === 'cleared';
 
     return (
       <div className="space-y-6 max-w-6xl mx-auto">
@@ -62,7 +72,7 @@ export function WorkspaceView() {
                 Welcome back, {userProfile.first_name}!
               </h1>
               <p className="mt-2 text-sm text-emerald-100 max-w-xl">
-                Track your university attendance across all organizations, check upcoming event call-times, and review clearance compliance.
+                {userProfile.student_id} • {userProfile.course} (Year {userProfile.year_level}) • Enrolled in {userMemberships.length} Student Organizations.
               </p>
             </div>
             <div className="bg-white/10 backdrop-blur-xs border border-white/20 rounded-xl p-4 shrink-0 text-right dark:bg-slate-900/60 dark:border-white/10">
@@ -70,123 +80,23 @@ export function WorkspaceView() {
                 Clearance Dues
               </p>
               <p className="text-2xl font-bold mt-1 text-white">
-                {formatCurrencyPHP(totalDues)}
+                {formatCurrencyPHP(studentClearance.total_fines)}
               </p>
               <span className="inline-block mt-1 text-[11px] font-medium text-emerald-200">
-                {totalDues === 0 ? '✓ Fully Cleared' : 'Pending Payments'}
+                {isCleared ? '✓ Fully Cleared' : 'Pending Settlement'}
               </span>
             </div>
           </div>
         </div>
 
-        {/* 3 Metric Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-          <Card>
-            <CardHeader className="p-5 pb-2">
-              <CardDescription>Attended Events</CardDescription>
-              <CardTitle className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-                {MOCK_STUDENT_ATTENDANCE.filter((a) => a.overall_status === 'completed').length}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-5 pt-0 text-xs text-emerald-600 font-medium dark:text-emerald-400">
-              Verified Time-In & Time-Out
-            </CardContent>
-          </Card>
+        {/* Clearance Breakdown Summary */}
+        <StudentClearanceSummary clearance={studentClearance} />
 
-          <Card>
-            <CardHeader className="p-5 pb-2">
-              <CardDescription>Missed / Partial Scans</CardDescription>
-              <CardTitle className="text-2xl font-bold text-amber-600 dark:text-amber-400">
-                {MOCK_STUDENT_ATTENDANCE.filter((a) => a.overall_status !== 'completed').length}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-5 pt-0 text-xs text-amber-700 font-medium dark:text-amber-300">
-              Subject to organization fines
-            </CardContent>
-          </Card>
+        {/* Upcoming Events Feed */}
+        <StudentEventsFeed events={studentUpcomingEvents} />
 
-          <Card>
-            <CardHeader className="p-5 pb-2">
-              <CardDescription>Upcoming University Events</CardDescription>
-              <CardTitle className="text-2xl font-bold text-[#027013] dark:text-emerald-400">
-                {allUpcomingEvents.length}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-5 pt-0 text-xs text-slate-500 font-medium dark:text-slate-400">
-              Scheduled this semester
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Upcoming Events Across All Organizations */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Upcoming Events (All Organizations)</CardTitle>
-                <CardDescription>
-                  Aggregated schedule for events where your membership requires attendance.
-                </CardDescription>
-              </div>
-              <span className="text-xs text-slate-500 font-medium dark:text-slate-400">
-                {allUpcomingEvents.length} events found
-              </span>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Host Org</TableHead>
-                  <TableHead>Event Title & Venue</TableHead>
-                  <TableHead>Event Date & Schedule</TableHead>
-                  <TableHead>Student Time-In Window</TableHead>
-                  <TableHead>Audience</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {allUpcomingEvents.map((event) => (
-                  <TableRow key={event.id}>
-                    <TableCell>
-                      <span className="font-bold text-[#027013] text-xs bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-md dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800/60">
-                        {event.organization.code}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <p className="font-semibold text-slate-900 dark:text-slate-100">{event.title}</p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">{event.location}</p>
-                    </TableCell>
-                    <TableCell>
-                      <p className="text-xs text-slate-800 font-medium dark:text-slate-200">
-                        {formatDateTime(event.event_start)}
-                      </p>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-xs text-slate-700 bg-slate-100 px-2 py-1 rounded font-mono dark:bg-slate-800 dark:text-slate-300">
-                        {formatTimeRange(event.attendance_in_start, event.attendance_in_end)}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-xs text-slate-600 dark:text-slate-300">
-                        {formatTargetYearLevels(event.target_year_levels)}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => selectOrg(event.organization_id)}
-                      >
-                        View Org
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        {/* Attendance Records & Fine Ledger */}
+        <StudentAttendanceTable records={studentRecords} />
       </div>
     );
   }
