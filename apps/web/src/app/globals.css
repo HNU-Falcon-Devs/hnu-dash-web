@@ -1,13 +1,41 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #f8fafc;
   --foreground: #0f172a;
+
+  /* Holy Name University (HNU) Brand Colors */
+  --hnu-green: #027013;
+  --hnu-green-hover: #01540e;
+  --hnu-green-light: #eaf6ec;
+  --hnu-gold: #f59e0b;
+  --hnu-gold-hover: #d97706;
+  --hnu-gold-light: #fef3c7;
+  --hnu-blue: #1e3a8a;
+}
+
+.dark {
+  --background: #0b1120;
+  --foreground: #f8fafc;
+
+  /* Dark mode brand tokens */
+  --hnu-green: #10b981;
+  --hnu-green-hover: #059669;
+  --hnu-green-light: #064e3b;
+  --hnu-gold: #fbbf24;
+  --hnu-gold-hover: #f59e0b;
+  --hnu-gold-light: #78350f;
+  --hnu-blue: #3b82f6;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-hnu-green: var(--hnu-green);
+  --color-hnu-gold: var(--hnu-gold);
+  --color-hnu-blue: var(--hnu-blue);
   --font-sans: Arial, Helvetica, sans-serif;
 }
 
@@ -15,4 +43,5 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
