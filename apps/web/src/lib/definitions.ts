@@ -235,6 +235,8 @@ export interface OrgPermissions {
   canAssignScanners: boolean;
   canReviewAttendance: boolean;
   canFinalizeEvent: boolean;
+  canViewAnalytics: boolean;
+  canViewReports: boolean;
   canScanEvent: (eventId: string) => boolean;
 }
 

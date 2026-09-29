@@ -16,10 +16,12 @@ describe('useOrgPermissions', () => {
     expect(result.current.canAssignScanners).toBe(true);
     expect(result.current.canReviewAttendance).toBe(true);
     expect(result.current.canFinalizeEvent).toBe(true);
+    expect(result.current.canViewAnalytics).toBe(true);
+    expect(result.current.canViewReports).toBe(true);
     expect(result.current.canScanEvent('event-123')).toBe(true);
   });
 
-  it('restricts officers from scanning events they are NOT assigned to', () => {
+  it('restricts officers from scanning events they are NOT assigned to and denies admin reports', () => {
     const { result } = renderHook(() =>
       useOrgPermissions({
         memberRole: 'officer',
@@ -31,13 +33,15 @@ describe('useOrgPermissions', () => {
     expect(result.current.canManageEvents).toBe(false);
     expect(result.current.canAssignScanners).toBe(false);
     expect(result.current.canReviewAttendance).toBe(false);
+    expect(result.current.canViewAnalytics).toBe(false);
+    expect(result.current.canViewReports).toBe(false);
     // Allowed on the assigned event:
     expect(result.current.canScanEvent('event-assigned-01')).toBe(true);
     // Disallowed on unassigned events:
     expect(result.current.canScanEvent('event-other-99')).toBe(false);
   });
 
-  it('denies management and scanning permissions to regular student members', () => {
+  it('denies management, reports, and scanning permissions to regular student members', () => {
     const { result } = renderHook(() =>
       useOrgPermissions({
         memberRole: 'student',
@@ -48,6 +52,8 @@ describe('useOrgPermissions', () => {
 
     expect(result.current.canManageEvents).toBe(false);
     expect(result.current.canAssignScanners).toBe(false);
+    expect(result.current.canViewAnalytics).toBe(false);
+    expect(result.current.canViewReports).toBe(false);
     expect(result.current.canScanEvent('event-123')).toBe(false);
   });
 
@@ -62,6 +68,8 @@ describe('useOrgPermissions', () => {
 
     expect(result.current.canManageEvents).toBe(true);
     expect(result.current.canAssignScanners).toBe(true);
+    expect(result.current.canViewAnalytics).toBe(true);
+    expect(result.current.canViewReports).toBe(true);
     expect(result.current.canScanEvent('any-event')).toBe(true);
   });
 });

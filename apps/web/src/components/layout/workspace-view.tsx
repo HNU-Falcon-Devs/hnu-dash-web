@@ -160,12 +160,14 @@ export function WorkspaceView() {
         </button>
       </div>
 
-      {/* Executive Organization Analytics Overview */}
-      <OrgAnalyticsOverview
-        analytics={orgAnalytics}
-        orgName={org.name}
-        orgCode={org.code}
-      />
+      {/* Executive Organization Analytics Overview (Admin Only) */}
+      {permissions.canViewAnalytics && (
+        <OrgAnalyticsOverview
+          analytics={orgAnalytics}
+          orgName={org.name}
+          orgCode={org.code}
+        />
+      )}
 
       {/* Organization Event Management Table */}
       <Card>
@@ -271,17 +273,19 @@ export function WorkspaceView() {
                                 Review
                               </Button>
                             )}
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setSelectedEventForReport(event)}
-                              className="h-8 px-2.5 text-xs shrink-0 inline-flex items-center gap-1"
-                            >
-                              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                              </svg>
-                              <span>Report</span>
-                            </Button>
+                            {permissions.canViewReports && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setSelectedEventForReport(event)}
+                                className="h-8 px-2.5 text-xs shrink-0 inline-flex items-center gap-1"
+                              >
+                                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                                </svg>
+                                <span>Report</span>
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
@@ -332,8 +336,8 @@ export function WorkspaceView() {
         />
       )}
 
-      {/* Master Attendance Report Modal */}
-      {selectedEventForReport && (
+      {/* Master Attendance Report Modal (Admin Only) */}
+      {permissions.canViewReports && selectedEventForReport && (
         <MasterReportModal
           key={selectedEventForReport.id}
           isOpen={true}

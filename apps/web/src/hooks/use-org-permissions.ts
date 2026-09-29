@@ -35,6 +35,8 @@ export function useOrgPermissions({
       canAssignScanners: hasAdminAuthority,
       canReviewAttendance: hasAdminAuthority,
       canFinalizeEvent: hasAdminAuthority,
+      canViewAnalytics: hasAdminAuthority,
+      canViewReports: hasAdminAuthority,
 
       /**
        * Strict scanner capability enforcement:
