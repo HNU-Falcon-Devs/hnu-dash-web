@@ -33,28 +33,28 @@ export function WorkspaceView() {
 
     return (
       <div className="space-y-6 max-w-6xl mx-auto">
-        {/* Welcome Banner */}
-        <div className="rounded-2xl bg-gradient-to-r from-blue-900 via-blue-800 to-indigo-900 p-8 text-white shadow-sm">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        {/* Welcome Banner (HNU Green & Gold) */}
+        <div className="rounded-2xl bg-gradient-to-r from-[#027013] via-[#01540e] to-emerald-950 p-8 text-white shadow-sm border border-emerald-800/40 relative overflow-hidden">
+          <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <span className="inline-flex items-center text-xs font-semibold uppercase tracking-widest text-blue-200 bg-white/10 px-3 py-1 rounded-full mb-3">
+              <span className="inline-flex items-center text-xs font-semibold uppercase tracking-widest text-amber-300 bg-amber-400/15 border border-amber-300/30 px-3 py-1 rounded-full mb-3 shadow-xs">
                 Holy Name University • Student Portal
               </span>
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
                 Welcome back, {userProfile.first_name}!
               </h1>
-              <p className="mt-2 text-sm text-blue-100 max-w-xl">
+              <p className="mt-2 text-sm text-emerald-100 max-w-xl">
                 Track your university attendance across all organizations, check upcoming event call-times, and review clearance compliance.
               </p>
             </div>
-            <div className="bg-white/10 backdrop-blur-xs border border-white/15 rounded-xl p-4 shrink-0 text-right">
-              <p className="text-xs text-blue-200 uppercase tracking-wider font-semibold">
+            <div className="bg-white/10 backdrop-blur-xs border border-white/20 rounded-xl p-4 shrink-0 text-right dark:bg-slate-900/60 dark:border-white/10">
+              <p className="text-xs text-amber-300 uppercase tracking-wider font-semibold">
                 Clearance Dues
               </p>
               <p className="text-2xl font-bold mt-1 text-white">
                 {formatCurrencyPHP(totalDues)}
               </p>
-              <span className="inline-block mt-1 text-[11px] font-medium text-emerald-300">
+              <span className="inline-block mt-1 text-[11px] font-medium text-emerald-200">
                 {totalDues === 0 ? '✓ Fully Cleared' : 'Pending Payments'}
               </span>
             </div>
@@ -66,11 +66,11 @@ export function WorkspaceView() {
           <Card>
             <CardHeader className="p-5 pb-2">
               <CardDescription>Attended Events</CardDescription>
-              <CardTitle className="text-2xl font-bold text-slate-900">
+              <CardTitle className="text-2xl font-bold text-slate-900 dark:text-slate-100">
                 {MOCK_STUDENT_ATTENDANCE.filter((a) => a.overall_status === 'completed').length}
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-5 pt-0 text-xs text-emerald-600 font-medium">
+            <CardContent className="p-5 pt-0 text-xs text-emerald-600 font-medium dark:text-emerald-400">
               Verified Time-In & Time-Out
             </CardContent>
           </Card>
@@ -78,11 +78,11 @@ export function WorkspaceView() {
           <Card>
             <CardHeader className="p-5 pb-2">
               <CardDescription>Missed / Partial Scans</CardDescription>
-              <CardTitle className="text-2xl font-bold text-amber-600">
+              <CardTitle className="text-2xl font-bold text-amber-600 dark:text-amber-400">
                 {MOCK_STUDENT_ATTENDANCE.filter((a) => a.overall_status !== 'completed').length}
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-5 pt-0 text-xs text-amber-700 font-medium">
+            <CardContent className="p-5 pt-0 text-xs text-amber-700 font-medium dark:text-amber-300">
               Subject to organization fines
             </CardContent>
           </Card>
@@ -90,11 +90,11 @@ export function WorkspaceView() {
           <Card>
             <CardHeader className="p-5 pb-2">
               <CardDescription>Upcoming University Events</CardDescription>
-              <CardTitle className="text-2xl font-bold text-blue-800">
+              <CardTitle className="text-2xl font-bold text-[#027013] dark:text-emerald-400">
                 {MOCK_EVENTS.length}
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-5 pt-0 text-xs text-slate-500 font-medium">
+            <CardContent className="p-5 pt-0 text-xs text-slate-500 font-medium dark:text-slate-400">
               Scheduled this semester
             </CardContent>
           </Card>
@@ -110,7 +110,7 @@ export function WorkspaceView() {
                   Aggregated schedule for events where your membership requires attendance.
                 </CardDescription>
               </div>
-              <span className="text-xs text-slate-500 font-medium">
+              <span className="text-xs text-slate-500 font-medium dark:text-slate-400">
                 {MOCK_EVENTS.length} events found
               </span>
             </div>
@@ -131,26 +131,26 @@ export function WorkspaceView() {
                 {MOCK_EVENTS.map((event) => (
                   <TableRow key={event.id}>
                     <TableCell>
-                      <span className="font-bold text-blue-800 text-xs bg-blue-50 border border-blue-200/80 px-2 py-0.5 rounded-md">
+                      <span className="font-bold text-[#027013] text-xs bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-md dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800/60">
                         {event.organization.code}
                       </span>
                     </TableCell>
                     <TableCell>
-                      <p className="font-semibold text-slate-900">{event.title}</p>
-                      <p className="text-xs text-slate-500">{event.location}</p>
+                      <p className="font-semibold text-slate-900 dark:text-slate-100">{event.title}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">{event.location}</p>
                     </TableCell>
                     <TableCell>
-                      <p className="text-xs text-slate-800 font-medium">
+                      <p className="text-xs text-slate-800 font-medium dark:text-slate-200">
                         {formatDateTime(event.event_start)}
                       </p>
                     </TableCell>
                     <TableCell>
-                      <span className="text-xs text-slate-700 bg-slate-100 px-2 py-1 rounded font-mono">
+                      <span className="text-xs text-slate-700 bg-slate-100 px-2 py-1 rounded font-mono dark:bg-slate-800 dark:text-slate-300">
                         {formatTimeRange(event.attendance_in_start, event.attendance_in_end)}
                       </span>
                     </TableCell>
                     <TableCell>
-                      <span className="text-xs text-slate-600">
+                      <span className="text-xs text-slate-600 dark:text-slate-300">
                         {formatTargetYearLevels(event.target_year_levels)}
                       </span>
                     </TableCell>
@@ -182,16 +182,16 @@ export function WorkspaceView() {
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
       {/* Organization Header Banner */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4 dark:border-slate-800 dark:bg-slate-900">
         <div>
           <div className="flex items-center gap-2.5 mb-2">
-            <span className="text-xs font-bold uppercase tracking-wider bg-slate-900 text-white px-2.5 py-0.5 rounded-md">
+            <span className="text-xs font-bold uppercase tracking-wider bg-[#027013] text-white px-2.5 py-0.5 rounded-md dark:bg-emerald-700">
               {org.code}
             </span>
             <TenantRoleBadge role={role} />
           </div>
-          <h1 className="text-2xl font-bold text-slate-900">{org.name}</h1>
-          <p className="mt-1 text-sm text-slate-500 max-w-2xl">{org.description}</p>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">{org.name}</h1>
+          <p className="mt-1 text-sm text-slate-500 max-w-2xl dark:text-slate-400">{org.description}</p>
         </div>
 
         {/* Action Controls for Org Admins */}
@@ -216,9 +216,9 @@ export function WorkspaceView() {
       </div>
 
       {/* Role Capability Banner */}
-      <div className="p-4 rounded-xl border border-slate-200/90 bg-slate-50 flex items-center justify-between text-xs text-slate-700">
+      <div className="p-4 rounded-xl border border-slate-200/90 bg-slate-50 flex items-center justify-between text-xs text-slate-700 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-300">
         <div className="flex items-center gap-2">
-          <span className="font-semibold text-slate-900">Your Scoped Permissions:</span>
+          <span className="font-semibold text-slate-900 dark:text-slate-100">Your Scoped Permissions:</span>
           <span>
             {permissions.canManageEvents
               ? 'Full Organization Administrative Access (Events, Scanner Delegation, Records)'
@@ -229,7 +229,7 @@ export function WorkspaceView() {
         </div>
         <button
           onClick={() => selectOrg(null)}
-          className="text-blue-800 font-semibold hover:underline cursor-pointer"
+          className="text-[#027013] font-semibold hover:underline cursor-pointer dark:text-emerald-400"
         >
           ← Return to Student Portal
         </button>
@@ -245,7 +245,7 @@ export function WorkspaceView() {
                 Events scheduled under {org.name}.
               </CardDescription>
             </div>
-            <span className="text-xs text-slate-500 font-medium">
+            <span className="text-xs text-slate-500 font-medium dark:text-slate-400">
               {orgEvents.length} total event(s)
             </span>
           </div>
@@ -275,28 +275,28 @@ export function WorkspaceView() {
                   return (
                     <TableRow key={event.id}>
                       <TableCell>
-                        <p className="font-semibold text-slate-900">{event.title}</p>
-                        <p className="text-xs text-slate-500">{event.location}</p>
+                        <p className="font-semibold text-slate-900 dark:text-slate-100">{event.title}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">{event.location}</p>
                       </TableCell>
-                      <TableCell className="text-xs font-medium text-slate-800">
+                      <TableCell className="text-xs font-medium text-slate-800 dark:text-slate-200">
                         {formatDateTime(event.event_start)}
                       </TableCell>
                       <TableCell>
-                        <span className="text-xs font-mono bg-purple-50 text-purple-800 border border-purple-200/80 px-2 py-0.5 rounded">
+                        <span className="text-xs font-mono bg-purple-50 text-purple-800 border border-purple-200/80 px-2 py-0.5 rounded dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-800/60">
                           {formatTimeRange(event.officer_in_start, event.officer_in_end)}
                         </span>
                       </TableCell>
                       <TableCell>
-                        <span className="text-xs font-mono bg-slate-100 text-slate-800 px-2 py-0.5 rounded">
+                        <span className="text-xs font-mono bg-slate-100 text-slate-800 px-2 py-0.5 rounded dark:bg-slate-800 dark:text-slate-200">
                           {formatTimeRange(event.attendance_in_start, event.attendance_in_end)}
                         </span>
                       </TableCell>
                       <TableCell className="text-xs">
-                        <span className="font-medium text-slate-800">
+                        <span className="font-medium text-slate-800 dark:text-slate-200">
                           {formatCurrencyPHP(event.fine_per_missed_scan_student)}
                         </span>
                         <span className="text-slate-400"> / </span>
-                        <span className="font-medium text-rose-700">
+                        <span className="font-medium text-rose-700 dark:text-rose-400">
                           {formatCurrencyPHP(event.fine_per_missed_scan_officer)}
                         </span>
                       </TableCell>
@@ -339,17 +339,17 @@ export function WorkspaceView() {
         description={`Authorized attendance scanner for: ${activeEventTitle}`}
       >
         <div className="space-y-4">
-          <div className="rounded-xl border-2 border-dashed border-blue-300 bg-blue-50/50 p-8 text-center">
-            <div className="mx-auto h-16 w-16 rounded-full bg-blue-100 text-blue-800 flex items-center justify-center mb-3">
+          <div className="rounded-xl border-2 border-dashed border-emerald-300 bg-emerald-50/50 p-8 text-center dark:border-emerald-800 dark:bg-emerald-950/20">
+            <div className="mx-auto h-16 w-16 rounded-full bg-emerald-100 text-[#027013] flex items-center justify-center mb-3 dark:bg-emerald-900/60 dark:text-emerald-300">
               <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
               </svg>
             </div>
-            <p className="text-sm font-semibold text-blue-900">
+            <p className="text-sm font-semibold text-emerald-950 dark:text-emerald-200">
               Camera Ready for ID Barcode / QR Scan
             </p>
-            <p className="mt-1 text-xs text-blue-700">
+            <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-400">
               Only officers designated in event_assigned_scanners can log scans.
             </p>
           </div>
