@@ -7,7 +7,7 @@ import { WorkspaceView } from './workspace-view';
 
 export function AppShell() {
   return (
-    <div className="flex min-h-screen bg-slate-50 font-sans text-slate-900 antialiased">
+    <div className="flex min-h-screen bg-slate-50 font-sans text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100">
       {/* Persistent Multi-Tenant Sidebar with "Your Organizations:" */}
       <Sidebar />
 

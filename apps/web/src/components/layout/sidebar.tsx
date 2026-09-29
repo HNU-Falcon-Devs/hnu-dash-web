@@ -13,19 +13,19 @@ export function Sidebar() {
   const isGlobalAdmin = userProfile.role === 'admin';
 
   return (
-    <aside className="w-72 shrink-0 border-r border-slate-200 bg-white flex flex-col h-screen sticky top-0 select-none">
+    <aside className="w-72 shrink-0 border-r border-slate-200 bg-white flex flex-col h-screen sticky top-0 select-none dark:bg-slate-900 dark:border-slate-800">
       {/* Brand Header */}
-      <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+      <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-xl bg-blue-800 flex items-center justify-center text-white font-bold text-lg shadow-sm">
+          <div className="h-9 w-9 rounded-xl bg-[#027013] flex items-center justify-center text-amber-400 font-extrabold text-lg shadow-sm border border-amber-400/30 dark:bg-emerald-700">
             H
           </div>
           <div>
-            <h1 className="font-bold text-slate-900 tracking-tight leading-tight">
+            <h1 className="font-bold text-slate-900 tracking-tight leading-tight dark:text-white">
               HNU DASH
             </h1>
-            <p className="text-xs text-slate-500 font-medium">
-              Attendance System
+            <p className="text-xs text-slate-500 font-medium dark:text-slate-400">
+              Holy Name University
             </p>
           </div>
         </div>
@@ -35,7 +35,7 @@ export function Sidebar() {
       <div className="flex-1 overflow-y-auto px-4 py-5 space-y-6">
         {/* Section 1: Universal Student Portal */}
         <div>
-          <p className="px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-2">
+          <p className="px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-2 dark:text-slate-500">
             Student Portal
           </p>
           <nav className="space-y-1">
@@ -45,14 +45,16 @@ export function Sidebar() {
               className={cn(
                 'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors text-left cursor-pointer',
                 isStudentPortalActive
-                  ? 'bg-blue-50 text-blue-800 font-semibold'
-                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  ? 'bg-[#027013]/10 text-[#027013] font-semibold dark:bg-emerald-950/50 dark:text-emerald-300'
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/60 dark:hover:text-slate-200'
               )}
             >
               <svg
                 className={cn(
                   'h-4 w-4 shrink-0',
-                  isStudentPortalActive ? 'text-blue-800' : 'text-slate-400'
+                  isStudentPortalActive
+                    ? 'text-[#027013] dark:text-emerald-400'
+                    : 'text-slate-400 dark:text-slate-500'
                 )}
                 fill="none"
                 viewBox="0 0 24 24"
@@ -73,17 +75,17 @@ export function Sidebar() {
         {/* Section 2: "Your Organizations:" */}
         <div>
           <div className="px-3 flex items-center justify-between mb-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
               Your Organizations:
             </p>
-            <span className="text-xs bg-slate-100 text-slate-500 font-semibold px-1.5 py-0.5 rounded-full">
+            <span className="text-xs bg-slate-100 text-slate-500 font-semibold px-1.5 py-0.5 rounded-full dark:bg-slate-800 dark:text-slate-400">
               {userMemberships.length}
             </span>
           </div>
 
           <div className="space-y-1">
             {userMemberships.length === 0 ? (
-              <p className="px-3 text-xs text-slate-400 italic">
+              <p className="px-3 text-xs text-slate-400 italic dark:text-slate-500">
                 No organizations joined yet.
               </p>
             ) : (
@@ -97,8 +99,8 @@ export function Sidebar() {
                     className={cn(
                       'w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg text-sm transition-all text-left cursor-pointer group',
                       isActive
-                        ? 'bg-blue-800 text-white font-medium shadow-xs'
-                        : 'text-slate-700 hover:bg-slate-50'
+                        ? 'bg-[#027013] text-white font-medium shadow-xs dark:bg-emerald-600'
+                        : 'text-slate-700 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/60'
                     )}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
@@ -106,8 +108,8 @@ export function Sidebar() {
                         className={cn(
                           'h-7 w-7 rounded-md flex items-center justify-center font-bold text-xs shrink-0 transition-colors',
                           isActive
-                            ? 'bg-blue-700 text-white'
-                            : 'bg-slate-100 text-slate-600 group-hover:bg-slate-200'
+                            ? 'bg-white/20 text-white'
+                            : 'bg-slate-100 text-slate-600 group-hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:group-hover:bg-slate-700'
                         )}
                       >
                         {membership.organization.code.slice(0, 2)}
@@ -116,7 +118,7 @@ export function Sidebar() {
                         <p
                           className={cn(
                             'text-sm truncate',
-                            isActive ? 'text-white font-semibold' : 'text-slate-800 font-medium'
+                            isActive ? 'text-white font-semibold' : 'text-slate-800 font-medium dark:text-slate-200'
                           )}
                         >
                           {membership.organization.name}
@@ -124,7 +126,7 @@ export function Sidebar() {
                         <p
                           className={cn(
                             'text-[11px] truncate',
-                            isActive ? 'text-blue-200' : 'text-slate-400'
+                            isActive ? 'text-emerald-100' : 'text-slate-400 dark:text-slate-500'
                           )}
                         >
                           {membership.organization.code}
@@ -150,14 +152,14 @@ export function Sidebar() {
 
         {/* Section 3: Faculty Adviser Tools (Shown if global admin) */}
         {isGlobalAdmin && (
-          <div className="pt-2 border-t border-slate-100">
-            <p className="px-3 text-[11px] font-semibold uppercase tracking-wider text-amber-600 mb-2">
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+            <p className="px-3 text-[11px] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400 mb-2">
               Adviser Controls
             </p>
-            <div className="p-3 bg-amber-50/70 border border-amber-200/60 rounded-xl space-y-2">
-              <div className="flex items-center gap-2 text-xs font-semibold text-amber-900">
+            <div className="p-3 bg-amber-50/70 border border-amber-200/60 rounded-xl space-y-2 dark:bg-amber-950/30 dark:border-amber-800/50">
+              <div className="flex items-center gap-2 text-xs font-semibold text-amber-900 dark:text-amber-200">
                 <svg
-                  className="h-4 w-4 text-amber-600 shrink-0"
+                  className="h-4 w-4 text-amber-600 shrink-0 dark:text-amber-400"
                   fill="none"
                   viewBox="0 0 24 24"
                   strokeWidth="2"
@@ -171,7 +173,7 @@ export function Sidebar() {
                 </svg>
                 <span>Institutional Authority</span>
               </div>
-              <p className="text-[11px] text-amber-800 leading-snug">
+              <p className="text-[11px] text-amber-800 leading-snug dark:text-amber-300">
                 You have global adviser authority to manage campus organizations and appoint student admins.
               </p>
             </div>
@@ -180,17 +182,17 @@ export function Sidebar() {
       </div>
 
       {/* User Footer Card */}
-      <div className="p-4 border-t border-slate-100 bg-slate-50/70">
+      <div className="p-4 border-t border-slate-100 bg-slate-50/70 dark:border-slate-800 dark:bg-slate-900/60">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-full bg-blue-100 text-blue-800 flex items-center justify-center font-bold text-sm shrink-0 border border-blue-200/60">
+          <div className="h-10 w-10 rounded-full bg-[#027013]/15 text-[#027013] flex items-center justify-center font-bold text-sm shrink-0 border border-[#027013]/30 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800">
             {userProfile.first_name[0]}
             {userProfile.last_name[0]}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-slate-900 truncate">
+            <p className="text-sm font-semibold text-slate-900 truncate dark:text-slate-100">
               {userProfile.first_name} {userProfile.last_name}
             </p>
-            <p className="text-xs text-slate-500 truncate">
+            <p className="text-xs text-slate-500 truncate dark:text-slate-400">
               {userProfile.student_id} • {userProfile.course}
             </p>
           </div>
