@@ -9,18 +9,36 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Modal } from '@/components/ui/modal';
 import { formatCurrencyPHP, formatDateTime, formatTargetYearLevels, formatTimeRange } from '@/utils/formatters';
-import { MOCK_EVENTS, MOCK_STUDENT_ATTENDANCE } from '@/lib/mock-data';
+import { MOCK_STUDENT_ATTENDANCE } from '@/lib/mock-data';
+import type { EventWithDetails } from '@/lib/definitions';
+import { getAllEvents } from '@/supabase/data/events';
+import { EventFormModal } from '@/components/orgs/event-form-modal';
+import { ScannerAssignmentModal } from '@/components/orgs/scanner-assignment-modal';
+import { AttendanceReviewModal } from '@/components/orgs/attendance-review-modal';
 
 export function WorkspaceView() {
   const { userProfile } = useAuth();
   const { activeMembership, isStudentPortalActive, permissions, selectOrg } = useOrg();
+
+  // Modals State
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [selectedEventForScanners, setSelectedEventForScanners] = useState<EventWithDetails | null>(null);
+  const [selectedEventForReview, setSelectedEventForReview] = useState<EventWithDetails | null>(null);
+
+  // Scanner Simulator Modal State
   const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
   const [activeEventTitle, setActiveEventTitle] = useState('');
 
-  // Events filtered for the active organization
-  const orgEvents = MOCK_EVENTS.filter(
-    (e) => e.organization_id === activeMembership?.organization.id
-  );
+  // Local state for event listing (allows newly created events to show immediately)
+  const [events, setEvents] = useState<EventWithDetails[]>(() => getAllEvents());
+  const refreshEvents = () => setEvents([...getAllEvents()]);
+
+  // Filter events for the active organization or all events for student portal
+  const orgEvents = activeMembership
+    ? events.filter((e) => e.organization_id === activeMembership.organization.id)
+    : [];
+
+  const allUpcomingEvents = events;
 
   // -------------------------------------------------------------
   // VIEW 1: Universal Student Portal
@@ -91,7 +109,7 @@ export function WorkspaceView() {
             <CardHeader className="p-5 pb-2">
               <CardDescription>Upcoming University Events</CardDescription>
               <CardTitle className="text-2xl font-bold text-[#027013] dark:text-emerald-400">
-                {MOCK_EVENTS.length}
+                {allUpcomingEvents.length}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-5 pt-0 text-xs text-slate-500 font-medium dark:text-slate-400">
@@ -111,7 +129,7 @@ export function WorkspaceView() {
                 </CardDescription>
               </div>
               <span className="text-xs text-slate-500 font-medium dark:text-slate-400">
-                {MOCK_EVENTS.length} events found
+                {allUpcomingEvents.length} events found
               </span>
             </div>
           </CardHeader>
@@ -128,7 +146,7 @@ export function WorkspaceView() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {MOCK_EVENTS.map((event) => (
+                {allUpcomingEvents.map((event) => (
                   <TableRow key={event.id}>
                     <TableCell>
                       <span className="font-bold text-[#027013] text-xs bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-md dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800/60">
@@ -197,19 +215,11 @@ export function WorkspaceView() {
         {/* Action Controls for Org Admins */}
         <div className="flex items-center gap-2.5 shrink-0">
           {permissions.canManageEvents && (
-            <Button size="md" variant="primary">
+            <Button size="md" variant="primary" onClick={() => setIsCreateModalOpen(true)}>
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
               </svg>
               <span>Create Event</span>
-            </Button>
-          )}
-          {permissions.canAssignScanners && (
-            <Button size="md" variant="outline">
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM4 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 0110.374 21c-2.331 0-4.512-.645-6.374-1.765z" />
-              </svg>
-              <span>Assign Officers</span>
             </Button>
           )}
         </div>
@@ -316,8 +326,21 @@ export function WorkspaceView() {
                             <span>Scan</span>
                           </Button>
                         )}
+                        {permissions.canAssignScanners && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => setSelectedEventForScanners(event)}
+                          >
+                            Scanners
+                          </Button>
+                        )}
                         {permissions.canManageEvents && (
-                          <Button size="sm" variant="outline">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setSelectedEventForReview(event)}
+                          >
                             Review
                           </Button>
                         )}
@@ -330,6 +353,44 @@ export function WorkspaceView() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Event Creation Modal */}
+      {permissions.canManageEvents && (
+        <EventFormModal
+          isOpen={isCreateModalOpen}
+          onClose={() => setIsCreateModalOpen(false)}
+          organizationId={org.id}
+          organizationName={org.name}
+          organizationCode={org.code}
+          userId={userProfile.id}
+          onEventCreated={() => {
+            refreshEvents();
+          }}
+        />
+      )}
+
+      {/* Scanner Assignment Modal */}
+      {permissions.canAssignScanners && selectedEventForScanners && (
+        <ScannerAssignmentModal
+          key={selectedEventForScanners.id}
+          isOpen={true}
+          onClose={() => setSelectedEventForScanners(null)}
+          event={selectedEventForScanners}
+          onAssignmentChange={() => {
+            refreshEvents();
+          }}
+        />
+      )}
+
+      {/* Attendance Review Modal */}
+      {permissions.canManageEvents && selectedEventForReview && (
+        <AttendanceReviewModal
+          key={selectedEventForReview.id}
+          isOpen={true}
+          onClose={() => setSelectedEventForReview(null)}
+          event={selectedEventForReview}
+        />
+      )}
 
       {/* Scanner Simulation Modal */}
       <Modal
