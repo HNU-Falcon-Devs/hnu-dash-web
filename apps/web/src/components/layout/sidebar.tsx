@@ -6,14 +6,36 @@ import { useOrg } from '@/context/org-context';
 import { TenantRoleBadge } from '@/components/ui/badge';
 import { cn } from '@/utils/cn';
 
-export function Sidebar() {
+export interface SidebarProps {
+  className?: string;
+  onItemClick?: () => void;
+  onClose?: () => void;
+  showCloseButton?: boolean;
+}
+
+export function Sidebar({
+  className,
+  onItemClick,
+  onClose,
+  showCloseButton = false,
+}: SidebarProps = {}) {
   const { userProfile, userMemberships } = useAuth();
   const { activeOrgId, selectOrg, isStudentPortalActive } = useOrg();
 
   const isGlobalAdmin = userProfile.role === 'admin';
 
+  const handleSelect = (orgId: string | null) => {
+    selectOrg(orgId);
+    if (onItemClick) onItemClick();
+  };
+
   return (
-    <aside className="w-72 shrink-0 border-r border-slate-200 bg-white flex flex-col h-screen sticky top-0 select-none dark:bg-slate-900 dark:border-slate-800">
+    <aside
+      className={cn(
+        'w-72 shrink-0 border-r border-slate-200 bg-white flex flex-col h-screen sticky top-0 select-none dark:bg-slate-900 dark:border-slate-800',
+        className
+      )}
+    >
       {/* Brand Header */}
       <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -29,6 +51,19 @@ export function Sidebar() {
             </p>
           </div>
         </div>
+
+        {showCloseButton && (
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close navigation menu"
+            className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+          >
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
       </div>
 
       {/* Navigation Sections */}
@@ -40,7 +75,7 @@ export function Sidebar() {
           </p>
           <nav className="space-y-1">
             <button
-              onClick={() => selectOrg(null)}
+              onClick={() => handleSelect(null)}
               type="button"
               className={cn(
                 'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors text-left cursor-pointer',
@@ -94,7 +129,7 @@ export function Sidebar() {
                 return (
                   <button
                     key={membership.organization.id}
-                    onClick={() => selectOrg(membership.organization.id)}
+                    onClick={() => handleSelect(membership.organization.id)}
                     type="button"
                     className={cn(
                       'w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg text-sm transition-all text-left cursor-pointer group',

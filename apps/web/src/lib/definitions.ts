@@ -201,6 +201,32 @@ export interface StudentClearanceStatus {
 }
 
 /**
+ * Individual attendee item in the Master Attendance Report.
+ */
+export interface MasterAttendeeRosterItem {
+  student: Profile;
+  time_in: AttendanceLog | null;
+  time_out: AttendanceLog | null;
+  overall_status: 'present' | 'late' | 'excused' | 'absent';
+  fine_amount: number;
+}
+
+/**
+ * Full master attendance report and executive analytics for an organization event.
+ */
+export interface MasterAttendanceReport {
+  event: EventWithDetails;
+  total_enrolled: number;
+  total_present: number;
+  total_late: number;
+  total_excused: number;
+  total_absent: number;
+  attendance_rate_percentage: number;
+  total_fines_generated: number;
+  roster: MasterAttendeeRosterItem[];
+}
+
+/**
  * Granular capability permissions within an organization context.
  * Used by UI components instead of checking raw role strings.
  */

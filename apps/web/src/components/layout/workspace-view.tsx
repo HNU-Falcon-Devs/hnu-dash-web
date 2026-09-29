@@ -19,6 +19,9 @@ import {
 import { EventFormModal } from '@/components/orgs/event-form-modal';
 import { ScannerAssignmentModal } from '@/components/orgs/scanner-assignment-modal';
 import { AttendanceReviewModal } from '@/components/orgs/attendance-review-modal';
+import { MasterReportModal } from '@/components/orgs/master-report-modal';
+import { OrgAnalyticsOverview } from '@/components/orgs/org-analytics-overview';
+import { getOrganizationAnalytics } from '@/supabase/data/reports';
 import { StudentClearanceSummary } from '@/components/portal/student-clearance-summary';
 import { StudentAttendanceTable } from '@/components/portal/student-attendance-table';
 import { StudentEventsFeed } from '@/components/portal/student-events-feed';
@@ -31,6 +34,7 @@ export function WorkspaceView() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedEventForScanners, setSelectedEventForScanners] = useState<EventWithDetails | null>(null);
   const [selectedEventForReview, setSelectedEventForReview] = useState<EventWithDetails | null>(null);
+  const [selectedEventForReport, setSelectedEventForReport] = useState<EventWithDetails | null>(null);
 
   // Scanner Simulator Modal State
   const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
@@ -106,6 +110,7 @@ export function WorkspaceView() {
   // -------------------------------------------------------------
   const org = activeMembership!.organization;
   const role = activeMembership!.member_role;
+  const orgAnalytics = getOrganizationAnalytics(org.id);
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
@@ -155,6 +160,13 @@ export function WorkspaceView() {
         </button>
       </div>
 
+      {/* Executive Organization Analytics Overview */}
+      <OrgAnalyticsOverview
+        analytics={orgAnalytics}
+        orgName={org.name}
+        orgCode={org.code}
+      />
+
       {/* Organization Event Management Table */}
       <Card>
         <CardHeader>
@@ -171,96 +183,114 @@ export function WorkspaceView() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Event Title & Venue</TableHead>
-                <TableHead>Date & Time</TableHead>
-                <TableHead>Officer Call Time</TableHead>
-                <TableHead>Attendee Window</TableHead>
-                <TableHead>Fines (Student / Officer)</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {orgEvents.length === 0 ? (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-slate-400">
-                    No events scheduled for this organization yet.
-                  </TableCell>
+                  <TableHead>Event Title & Venue</TableHead>
+                  <TableHead>Date & Time</TableHead>
+                  <TableHead>Officer Call Time</TableHead>
+                  <TableHead>Attendee Window</TableHead>
+                  <TableHead>Fines (Student / Officer)</TableHead>
+                  <TableHead className="text-right whitespace-nowrap min-w-[280px]">Actions</TableHead>
                 </TableRow>
-              ) : (
-                orgEvents.map((event) => {
-                  const canScan = permissions.canScanEvent(event.id);
-                  return (
-                    <TableRow key={event.id}>
-                      <TableCell>
-                        <p className="font-semibold text-slate-900 dark:text-slate-100">{event.title}</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">{event.location}</p>
-                      </TableCell>
-                      <TableCell className="text-xs font-medium text-slate-800 dark:text-slate-200">
-                        {formatDateTime(event.event_start)}
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-xs font-mono bg-purple-50 text-purple-800 border border-purple-200/80 px-2 py-0.5 rounded dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-800/60">
-                          {formatTimeRange(event.officer_in_start, event.officer_in_end)}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-xs font-mono bg-slate-100 text-slate-800 px-2 py-0.5 rounded dark:bg-slate-800 dark:text-slate-200">
-                          {formatTimeRange(event.attendance_in_start, event.attendance_in_end)}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-xs">
-                        <span className="font-medium text-slate-800 dark:text-slate-200">
-                          {formatCurrencyPHP(event.fine_per_missed_scan_student)}
-                        </span>
-                        <span className="text-slate-400"> / </span>
-                        <span className="font-medium text-rose-700 dark:text-rose-400">
-                          {formatCurrencyPHP(event.fine_per_missed_scan_officer)}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right space-x-2">
-                        {canScan && (
-                          <Button
-                            size="sm"
-                            variant="primary"
-                            onClick={() => {
-                              setActiveEventTitle(event.title);
-                              setIsScannerModalOpen(true);
-                            }}
-                          >
-                            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM14.625 3.75c-.621 0-1.125.504-1.125 1.125v4.5c0 .621.504 1.125 1.125 1.125h4.5c.621 0 1.125-.504 1.125-1.125v-4.5c0-.621-.504-1.125-1.125-1.125h-4.5zM14.625 14.625c-.621 0-1.125.504-1.125 1.125v4.5c0 .621.504 1.125 1.125 1.125h4.5c.621 0 1.125-.504 1.125-1.125v-4.5c0-.621-.504-1.125-1.125-1.125h-4.5z" />
-                            </svg>
-                            <span>Scan</span>
-                          </Button>
-                        )}
-                        {permissions.canAssignScanners && (
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => setSelectedEventForScanners(event)}
-                          >
-                            Scanners
-                          </Button>
-                        )}
-                        {permissions.canManageEvents && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setSelectedEventForReview(event)}
-                          >
-                            Review
-                          </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {orgEvents.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8 text-slate-400">
+                      No events scheduled for this organization yet.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  orgEvents.map((event) => {
+                    const canScan = permissions.canScanEvent(event.id);
+                    return (
+                      <TableRow key={event.id}>
+                        <TableCell>
+                          <p className="font-semibold text-slate-900 dark:text-slate-100">{event.title}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">{event.location}</p>
+                        </TableCell>
+                        <TableCell className="text-xs font-medium text-slate-800 dark:text-slate-200">
+                          {formatDateTime(event.event_start)}
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-xs font-mono bg-purple-50 text-purple-800 border border-purple-200/80 px-2 py-0.5 rounded dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-800/60">
+                            {formatTimeRange(event.officer_in_start, event.officer_in_end)}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-xs font-mono bg-slate-100 text-slate-800 px-2 py-0.5 rounded dark:bg-slate-800 dark:text-slate-200">
+                            {formatTimeRange(event.attendance_in_start, event.attendance_in_end)}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          <span className="font-medium text-slate-800 dark:text-slate-200">
+                            {formatCurrencyPHP(event.fine_per_missed_scan_student)}
+                          </span>
+                          <span className="text-slate-400"> / </span>
+                          <span className="font-medium text-rose-700 dark:text-rose-400">
+                            {formatCurrencyPHP(event.fine_per_missed_scan_officer)}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right whitespace-nowrap min-w-[280px]">
+                          <div className="flex items-center justify-end gap-1.5 flex-nowrap">
+                            {canScan && (
+                              <Button
+                                size="sm"
+                                variant="primary"
+                                onClick={() => {
+                                  setActiveEventTitle(event.title);
+                                  setIsScannerModalOpen(true);
+                                }}
+                                className="h-8 px-2.5 text-xs inline-flex items-center gap-1 shrink-0"
+                              >
+                                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM14.625 3.75c-.621 0-1.125.504-1.125 1.125v4.5c0 .621.504 1.125 1.125 1.125h4.5c.621 0 1.125-.504 1.125-1.125v-4.5c0-.621-.504-1.125-1.125-1.125h-4.5zM14.625 14.625c-.621 0-1.125.504-1.125 1.125v4.5c0 .621.504 1.125 1.125 1.125h4.5c.621 0 1.125-.504 1.125-1.125v-4.5c0-.621-.504-1.125-1.125-1.125h-4.5z" />
+                                </svg>
+                                <span>Scan</span>
+                              </Button>
+                            )}
+                            {permissions.canAssignScanners && (
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => setSelectedEventForScanners(event)}
+                                className="h-8 px-2.5 text-xs shrink-0"
+                              >
+                                Scanners
+                              </Button>
+                            )}
+                            {permissions.canManageEvents && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setSelectedEventForReview(event)}
+                                className="h-8 px-2.5 text-xs shrink-0"
+                              >
+                                Review
+                              </Button>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setSelectedEventForReport(event)}
+                              className="h-8 px-2.5 text-xs shrink-0 inline-flex items-center gap-1"
+                            >
+                              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                              </svg>
+                              <span>Report</span>
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
 
@@ -299,6 +329,16 @@ export function WorkspaceView() {
           isOpen={true}
           onClose={() => setSelectedEventForReview(null)}
           event={selectedEventForReview}
+        />
+      )}
+
+      {/* Master Attendance Report Modal */}
+      {selectedEventForReport && (
+        <MasterReportModal
+          key={selectedEventForReport.id}
+          isOpen={true}
+          onClose={() => setSelectedEventForReport(null)}
+          event={selectedEventForReport}
         />
       )}
 
