@@ -56,7 +56,7 @@ export function Modal({
     >
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity"
+        className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs transition-opacity"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -64,27 +64,27 @@ export function Modal({
       {/* Modal Surface */}
       <div
         className={cn(
-          'relative w-full rounded-2xl bg-white p-6 shadow-xl border border-slate-200/80 transition-all duration-200 z-10',
+          'relative w-full rounded-2xl bg-white p-6 shadow-xl border border-slate-200/80 transition-all duration-200 z-10 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-100',
           maxWidthClasses[maxWidth],
           className
         )}
       >
-        <div className="flex items-start justify-between pb-4 border-b border-slate-100">
+        <div className="flex items-start justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
           <div>
             <h2
               id="modal-title"
-              className="text-lg font-semibold text-slate-900"
+              className="text-lg font-semibold text-slate-900 dark:text-slate-100"
             >
               {title}
             </h2>
             {description && (
-              <p className="mt-1 text-sm text-slate-500">{description}</p>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{description}</p>
             )}
           </div>
           <button
             onClick={onClose}
             type="button"
-            className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400 cursor-pointer"
+            className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400 cursor-pointer"
             aria-label="Close modal"
           >
             <svg
