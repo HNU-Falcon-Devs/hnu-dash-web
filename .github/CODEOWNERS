@@ -1,0 +1,5 @@
+# Repository-wide code owners.
+* @Syris-EkzD @itsMarchus
+
+# Keep repository review policy changes under the same owners.
+/.github/CODEOWNERS @Syris-EkzD @itsMarchus
