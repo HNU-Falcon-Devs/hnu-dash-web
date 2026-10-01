@@ -10,10 +10,10 @@ export function AppShell() {
 
   return (
     <div className="flex min-h-screen bg-slate-50 font-sans text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100">
-      {/* Desktop Persistent Multi-Tenant Sidebar */}
+      {/* Desktop navigation */}
       <Sidebar className="hidden md:flex" />
 
-      {/* Mobile Slide-Over Drawer Navigation */}
+      {/* Mobile navigation drawer */}
       {isMobileMenuOpen && (
         <div className="fixed inset-0 z-50 md:hidden flex">
           <div
@@ -31,7 +31,7 @@ export function AppShell() {
         </div>
       )}
 
-      {/* Main Content Area */}
+      {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0">
         <Header onMenuClick={() => setIsMobileMenuOpen(true)} />
         <main className="flex-1 p-3.5 sm:p-6 md:p-8 overflow-y-auto">
