@@ -1,54 +1,31 @@
-# Architecture
+# Web Repository Architecture
 
-## Purpose and status
+## Purpose
 
-HNU DASH is planned as a QR-based university event attendance system. This repository currently establishes infrastructure and project boundaries only. It does not yet implement the attendance domain, authentication, or production integrations.
+This repository owns only the HNU DASH Next.js frontend. Its current phase establishes reusable UI infrastructure and a responsive application shell while product workflows and backend integration remain deferred.
 
-## System boundaries
-
-### Next.js web application
-
-`apps/web` is the management and control interface. It is expected eventually to support event management, organizations, roles and permissions, attendance-staff assignment, attendance review and corrections, event finalization, and student attendance viewing.
-
-The web client must not be treated as an authorization or data-integrity boundary. Security-sensitive decisions belong in the authoritative backend.
-
-### Supabase/PostgreSQL backend
-
-Supabase/PostgreSQL is the source of truth. It will eventually own authorization, role and permission enforcement, organization scope, attendance reconciliation, duplicate validation, event lifecycle enforcement, and authoritative attendance records.
-
-No database schema or hosted-project dependency is introduced in this foundation. Backend design will be added when its domain requirements are defined.
-
-### Future Flutter application
-
-A Flutter mobile application is planned but is not part of the current repository. It is expected to download assigned events and frozen rosters, scan physical HNU IDs, operate offline, keep scans temporarily in SQLite, and synchronize them to the server.
-
-The mobile application will never be authoritative. Offline data remains provisional until the backend validates and reconciles it.
-
-### Future HNU MIS integration
-
-The official HNU MIS is intended to prove user identity in production. HNU DASH must not store or proxy MIS passwords. Identity proof through MIS and application authorization within HNU DASH/Supabase are separate responsibilities.
-
-## Data authority
+## Boundaries
 
 ```text
-HNU MIS (identity proof)
-          |
-          v
-Next.js web / future Flutter mobile
-          |
-          v
-Supabase/PostgreSQL (authorization and authoritative records)
+HNU DASH Web  -> consumes a future backend contract
+HNU Backend  -> separate authoritative Supabase/PostgreSQL project
+HNU Mobile   -> separate Flutter attendance-collection project
 ```
 
-Clients may collect input and present state, but only the backend may make authoritative decisions about access, event state, duplicates, reconciliation, and final attendance.
+### Web
 
-## Intentionally deferred
+Web owns frontend pages, reusable components, responsive layout, theme and design tokens, and frontend tests and build configuration. UI navigation may reserve space for future areas, but must not simulate authority, persistence, reconciliation, or production data.
 
-- Database schemas and migrations
-- Authentication flows and MIS integration
-- Roles, permissions, and organization management
-- Event and attendance workflows
-- Scanning, offline storage, synchronization, and reconciliation
-- Student dashboards and clearance mode
-- Production or sample domain data
-- Flutter project initialization
+### Backend
+
+The separate backend project will own PostgreSQL schemas, migrations, row-level security, authorization, validation, mutation logic, synchronization, reconciliation, and authoritative records. This repository must not invent that contract.
+
+### Mobile
+
+The separate Flutter project owns QR attendance collection and offline mobile behavior. The web application does not scan attendance.
+
+## Authentication
+
+Authentication provider: **TBD**.
+
+No authentication provider or flow is selected or implemented in this foundation.

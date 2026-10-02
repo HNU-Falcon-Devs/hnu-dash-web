@@ -1,27 +1,27 @@
-# Contributing to HNU DASH
+# Contributing to HNU DASH Web
+
+## Scope
+
+Keep contributions within the Next.js frontend boundary. Do not add backend schemas, Supabase migrations, authoritative authorization logic, mobile/QR scanning functionality, or invented backend contracts. Authentication provider selection and backend integration remain deferred.
 
 ## Setup
 
-Use Node.js 24 LTS and npm. Install the locked web dependencies from the repository root:
+Use Node.js 24 and run commands from the repository root:
 
 ```bash
-cd apps/web
 npm ci
+npm run dev
 ```
-
-Start the local development server with `npm run dev`.
 
 ## Development workflow
 
-1. Read `README.md`, `docs/architecture.md`, and `AGENTS.md` before making architectural changes.
-2. Keep each change focused and avoid speculative abstractions or dependencies.
-3. Add or update tests when behavior changes.
-4. Never commit credentials, local environment files, build output, or generated caches.
-5. Do not add mobile or attendance-domain implementation until a task explicitly calls for it.
+1. Read `README.md`, `docs/architecture.md`, and `AGENTS.md`.
+2. Keep changes focused and avoid speculative abstractions or dependencies.
+3. Add or update meaningful tests whenever behavior changes.
+4. Never commit credentials, environment files, production data, build output, or generated caches.
+5. Stop for clarification when a change would materially affect architecture, security, data ownership, or user-visible scope.
 
-## Required validation
-
-Before committing or opening a pull request, run these commands from `apps/web`:
+Before committing or opening a pull request, run:
 
 ```bash
 npm run lint
@@ -30,14 +30,4 @@ npm test
 npm run build
 ```
 
-All commands must pass. Review `git status` and the complete diff before committing.
-
-## Commit messages
-
-Use [Conventional Commits](https://www.conventionalcommits.org/) with a clear, imperative description, for example:
-
-```text
-feat: add event creation form
-fix: reject duplicate attendance submissions
-docs: clarify local Supabase setup
-```
+Review `git status` and the complete diff. Use Conventional Commit messages with clear, imperative descriptions.

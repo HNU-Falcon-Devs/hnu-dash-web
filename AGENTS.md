@@ -1,15 +1,14 @@
-# HNU DASH Agent Guidelines
+# HNU DASH Web Agent Guidelines
 
-- Read the existing documentation and code before editing; preserve documented architectural boundaries.
-- Keep changes scoped to the request. Do not silently broaden requirements.
-- The project is web-first until explicitly instructed otherwise. Do not create Flutter code or `apps/mobile` yet.
-- Supabase/PostgreSQL is authoritative. Mobile and web clients are not sources of truth.
-- Client-side authorization is not a security boundary; enforce authorization in the backend.
-- HNU MIS may prove identity in production, but never store or proxy MIS passwords.
+- This repository is frontend-only. Read existing documentation and code before editing and preserve documented boundaries.
+- Keep changes scoped to the request. Do not silently broaden requirements or invent backend contracts.
+- Do not add Supabase migrations, PostgreSQL schemas, backend services, Edge Functions, or authoritative data and authorization logic here.
+- Do not implement Flutter, offline collection, or QR scanning functionality here; mobile is maintained separately.
+- The authentication provider is TBD. Do not choose or implement one without explicit direction.
 - Never commit credentials, local environment files, production data, or secrets.
 - Avoid speculative abstractions, unnecessary dependencies, and premature domain implementation.
-- Preserve strict TypeScript settings. Do not weaken compiler or lint rules to make checks pass.
+- Preserve strict TypeScript and existing lint standards; do not weaken validation to make checks pass.
 - Add or update meaningful tests whenever behavior changes.
-- Before completion, run lint, typecheck, tests, and the production build from `apps/web`.
+- Before completion, run `npm ci`, lint, typecheck, tests, and the production build from the repository root.
 - Use Conventional Commit messages.
-- Stop and ask for clarification when a requirement would materially change architecture, security, data ownership, or user-visible behavior.
+- Stop and ask for clarification when a requirement would materially change architecture, security, data ownership, or user-visible scope.
