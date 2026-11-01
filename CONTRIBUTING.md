@@ -31,4 +31,4 @@ npm run build
 ```
 
 Review `git status` and the complete diff. Use Conventional Commit messages with clear, imperative descriptions.
-Submit changes to `main` through a focused pull request and wait for the required `Web validation` check and CODEOWNER review.
+Every change to protected `main` requires a pull request and passing `Web validation`, including changes by `Syris-EkzD`. Normal PR approval and CODEOWNER review requirements remain enforced. `Syris-EkzD` is the sole CODEOWNER and has a PR-only review bypass; it does not waive CI or permit direct or force pushes to `main`.

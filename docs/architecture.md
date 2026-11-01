@@ -20,7 +20,7 @@ Web owns frontend pages, reusable components, responsive layout, theme and desig
 
 The separate backend project will own PostgreSQL schemas, migrations, row-level security, authorization, validation, mutation logic, synchronization, reconciliation, and authoritative records. This repository must not invent that contract.
 
-The [backend repository's proposed integration contract](https://github.com/HNU-Falcon-Devs/hnu-dash-backend/blob/docs/canonical-integration-contract/docs/contracts/integration-v0.md) is the canonical source for shared contract decisions. [Backend PR #2](https://github.com/HNU-Falcon-Devs/hnu-dash-backend/pull/2) is a proposal, not an approved or deployed API. Its operation names, payloads, permissions, and transport are not final; Web must not copy the contract or independently invent replacements.
+The backend repository owns the canonical integration contract, currently proposed in [backend PR #2](https://github.com/HNU-Falcon-Devs/hnu-dash-backend/pull/2). The proposal is unapproved and does not represent a deployed API. Its operation names, payloads, permissions, and transport are not final; Web must not copy the contract or independently invent replacements.
 
 ### Mobile
 
