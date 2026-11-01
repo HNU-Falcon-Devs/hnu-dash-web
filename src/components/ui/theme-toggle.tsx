@@ -70,6 +70,34 @@ export function ThemeToggle({ className }: { className?: string }) {
     },
   ];
 
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+    let nextIndex: number;
+    switch (event.key) {
+      case 'ArrowRight':
+      case 'ArrowDown':
+        nextIndex = (index + 1) % options.length;
+        break;
+      case 'ArrowLeft':
+      case 'ArrowUp':
+        nextIndex = (index - 1 + options.length) % options.length;
+        break;
+      case 'Home':
+        nextIndex = 0;
+        break;
+      case 'End':
+        nextIndex = options.length - 1;
+        break;
+      default:
+        return;
+    }
+
+    event.preventDefault();
+    event.currentTarget.parentElement
+      ?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[nextIndex]
+      ?.focus();
+    setTheme(options[nextIndex].value);
+  };
+
   return (
     <div
       className={cn(
@@ -79,17 +107,20 @@ export function ThemeToggle({ className }: { className?: string }) {
       role="radiogroup"
       aria-label="Theme selection"
     >
-      {options.map((opt) => {
+      {options.map((opt, index) => {
         const isActive = theme === opt.value;
         return (
           <button
             key={opt.value}
             type="button"
             role="radio"
+            aria-label={opt.label}
             aria-checked={isActive}
+            tabIndex={isActive ? 0 : -1}
             onClick={() => setTheme(opt.value)}
+            onKeyDown={(event) => handleKeyDown(event, index)}
             className={cn(
-              'flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all cursor-pointer',
+              'flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600',
               isActive
                 ? 'bg-white text-slate-900 shadow-2xs dark:bg-slate-700 dark:text-white'
                 : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
