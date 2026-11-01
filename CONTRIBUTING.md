@@ -31,3 +31,4 @@ npm run build
 ```
 
 Review `git status` and the complete diff. Use Conventional Commit messages with clear, imperative descriptions.
+Submit changes to `main` through a focused pull request and wait for the required `Web validation` check and CODEOWNER review.
