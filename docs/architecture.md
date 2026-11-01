@@ -20,6 +20,8 @@ Web owns frontend pages, reusable components, responsive layout, theme and desig
 
 The separate backend project will own PostgreSQL schemas, migrations, row-level security, authorization, validation, mutation logic, synchronization, reconciliation, and authoritative records. This repository must not invent that contract.
 
+The backend repository owns the canonical integration contract, currently proposed in [backend PR #2](https://github.com/HNU-Falcon-Devs/hnu-dash-backend/pull/2). The proposal is unapproved and does not represent a deployed API. Its operation names, payloads, permissions, and transport are not final; Web must not copy the contract or independently invent replacements.
+
 ### Mobile
 
 The separate Flutter project owns QR attendance collection and offline mobile behavior. The web application does not scan attendance.
