@@ -1,23 +1,30 @@
 # HNU DASH Web
 
-This repository contains the Next.js frontend for HNU DASH. It is currently in a UI foundation phase: the responsive application shell, theme system, design tokens, reusable UI primitives, and frontend validation are established without simulating production behavior.
+HNU DASH is a planned event attendance system for Holy Name University, starting with a pilot for approximately 600 BSIT students. It aims to make organizing events, collecting attendance, and checking records easier for both organizers and students.
 
-## Repository boundary
+## How HNU DASH will work
 
-- **Web (this repository):** Next.js management and student-facing user interfaces.
-- **Backend (separate repository):** the authoritative Supabase/PostgreSQL implementation and future API contract.
-- **Mobile (separate repository):** the Flutter application responsible for QR attendance collection.
+1. Organization leaders prepare events and assign attendance staff through the Web app.
+2. Assigned staff use the separate Mobile app to scan student IDs, including when offline.
+3. The Backend checks uploaded scans and produces official attendance results.
+4. Authorized organizers review records and corrections, while students view their own attendance.
 
-QR scanning does not occur in the web application. Backend integration and domain workflows are deferred. The authentication provider is **TBD**.
+**These are planned workflows, not features currently available.**
 
-## Requirements
+## What this app is for
 
-- Node.js 24
-- npm compatible with the committed lockfile
+Web will provide the screens for administrators, organization leaders, attendance staff with review access, and students. It will not scan IDs or independently decide attendance.
 
-## Development
+- [HNU DASH Backend](https://github.com/HNU-Falcon-Devs/hnu-dash-backend) manages the trusted records, permissions, and attendance results.
+- [HNU DASH Mobile](https://github.com/HNU-Falcon-Devs/hnu-dash-mobile) handles on-site scanning and offline collection.
 
-Run all commands from the repository root:
+## Current status
+
+**Development foundation ready; not yet usable for managing real events.** The responsive layout, themes, shared interface components, tests, and build checks are in place. Sign-in, event management, attendance views, and backend integration are still to be built. Authentication and the shared integration contract are not yet approved.
+
+## Developer setup
+
+Requires Node.js 24 and npm compatible with the committed lockfile. Run from the repository root:
 
 ```bash
 npm ci
@@ -35,4 +42,4 @@ npm test
 npm run build
 ```
 
-No backend credentials or hosted services are required for this frontend foundation.
+No backend credentials or hosted services are required to run the current frontend foundation.
