@@ -81,7 +81,9 @@ export default async function OrganizationsPage() {
                   {organizations.map((organization) => (
                     <li key={organization.id} className="flex flex-wrap items-start justify-between gap-3 py-4 first:pt-0 last:pb-0">
                       <div className="min-w-0">
-                        <p className="font-semibold break-words">{organization.name}</p>
+                        <Link href={`/organizations/${organization.id}`} className="font-semibold break-words text-emerald-700 underline hover:text-emerald-800 dark:text-emerald-400">
+                          {organization.name}
+                        </Link>
                         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400 break-all">{organization.slug}</p>
                       </div>
                       <Badge variant={organization.active ? "success" : "default"}>
