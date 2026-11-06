@@ -1,4 +1,5 @@
 import { Badge } from '@/components/ui/badge';
+import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 const areas = ['Events', 'Organizations', 'Attendance'];
@@ -14,7 +15,7 @@ export function WorkspaceView() {
       <section aria-labelledby="foundation-heading">
         <div className="mb-4"><h2 id="foundation-heading" className="text-xl font-bold text-slate-900 dark:text-slate-100">Frontend workspace</h2><p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Navigation areas are visual placeholders. Product workflows and backend integration are intentionally deferred.</p></div>
         <div className="grid gap-4 md:grid-cols-3">
-          {areas.map((area) => <Card id={area.toLowerCase()} key={area}><CardHeader><CardTitle>{area}</CardTitle><CardDescription>Reserved for a future backend-backed workflow.</CardDescription></CardHeader><CardContent><Badge variant="outline">Not implemented</Badge></CardContent></Card>)}
+          {areas.map((area) => <Card id={area.toLowerCase()} key={area}><CardHeader><CardTitle>{area}</CardTitle><CardDescription>{area === 'Organizations' ? 'Browse organizations visible to your account.' : 'Reserved for a future backend-backed workflow.'}</CardDescription></CardHeader><CardContent>{area === 'Organizations' ? <Link href="/organizations" className="text-sm font-semibold text-emerald-700 underline dark:text-emerald-400">Open organizations</Link> : <Badge variant="outline">Not implemented</Badge>}</CardContent></Card>)}
         </div>
       </section>
     </div>

@@ -1,12 +1,18 @@
 'use client';
 
 import { cn } from '@/utils/cn';
+import Link from 'next/link';
 
-export interface SidebarProps { className?: string; onItemClick?: () => void; onClose?: () => void; showCloseButton?: boolean }
+export interface SidebarProps { className?: string; onItemClick?: () => void; onClose?: () => void; showCloseButton?: boolean; activePath?: '/' | '/organizations' }
 
-const navigation = ['Dashboard', 'Events', 'Organizations', 'Attendance'];
+const navigation = [
+  { label: 'Dashboard', href: '/' },
+  { label: 'Events', href: '/#events' },
+  { label: 'Organizations', href: '/organizations' },
+  { label: 'Attendance', href: '/#attendance' },
+] as const;
 
-export function Sidebar({ className, onItemClick, onClose, showCloseButton = false }: SidebarProps = {}) {
+export function Sidebar({ className, onItemClick, onClose, showCloseButton = false, activePath = '/' }: SidebarProps = {}) {
   return (
     <aside className={cn('sticky top-0 flex h-screen w-72 shrink-0 flex-col border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900', className)}>
       <div className="flex items-center justify-between border-b border-slate-100 p-5 dark:border-slate-800">
@@ -14,9 +20,17 @@ export function Sidebar({ className, onItemClick, onClose, showCloseButton = fal
         {showCloseButton && <button type="button" onClick={onClose} aria-label="Close navigation menu" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">×</button>}
       </div>
       <nav aria-label="Primary navigation" className="flex-1 space-y-1 p-4">
-        {navigation.map((item, index) => <a key={item} href={`#${item.toLowerCase()}`} onClick={onItemClick} aria-current={index === 0 ? 'page' : undefined} className={cn('block rounded-lg px-3 py-2.5 text-sm font-medium transition-colors', index === 0 ? 'bg-emerald-50 text-[#027013] dark:bg-emerald-950/50 dark:text-emerald-300' : 'text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800')}>{item}</a>)}
+        {navigation.map((item) => {
+          const active = item.href === activePath;
+          return <Link key={item.label} href={item.href} onClick={onItemClick}
+            aria-current={active ? 'page' : undefined}
+            className={cn('block rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+              active ? 'bg-emerald-50 text-[#027013] dark:bg-emerald-950/50 dark:text-emerald-300' : 'text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800')}>
+            {item.label}
+          </Link>;
+        })}
       </nav>
-      <p className="border-t border-slate-100 p-5 text-xs leading-5 text-slate-500 dark:border-slate-800 dark:text-slate-400">Google authentication foundation<br />Other workflows are not yet implemented.</p>
+      <p className="border-t border-slate-100 p-5 text-xs leading-5 text-slate-500 dark:border-slate-800 dark:text-slate-400">Organization management available<br />Events and attendance coming later.</p>
     </aside>
   );
 }
