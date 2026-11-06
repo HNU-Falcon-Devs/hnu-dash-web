@@ -5,7 +5,7 @@ import { Sidebar } from './sidebar';
 import { Header } from './header';
 import { WorkspaceView } from './workspace-view';
 
-export function AppShell() {
+export function AppShell({ userEmail }: { userEmail?: string } = {}) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const drawerRef = React.useRef<HTMLDivElement>(null);
 
@@ -81,7 +81,7 @@ export function AppShell() {
 
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0">
-        <Header onMenuClick={() => setIsMobileMenuOpen(true)} isMenuOpen={isMobileMenuOpen} />
+        <Header onMenuClick={() => setIsMobileMenuOpen(true)} isMenuOpen={isMobileMenuOpen} userEmail={userEmail} />
         <main className="flex-1 p-3.5 sm:p-6 md:p-8 overflow-y-auto">
           <WorkspaceView />
         </main>

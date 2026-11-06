@@ -16,7 +16,7 @@ export function Sidebar({ className, onItemClick, onClose, showCloseButton = fal
       <nav aria-label="Primary navigation" className="flex-1 space-y-1 p-4">
         {navigation.map((item, index) => <a key={item} href={`#${item.toLowerCase()}`} onClick={onItemClick} aria-current={index === 0 ? 'page' : undefined} className={cn('block rounded-lg px-3 py-2.5 text-sm font-medium transition-colors', index === 0 ? 'bg-emerald-50 text-[#027013] dark:bg-emerald-950/50 dark:text-emerald-300' : 'text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800')}>{item}</a>)}
       </nav>
-      <p className="border-t border-slate-100 p-5 text-xs leading-5 text-slate-500 dark:border-slate-800 dark:text-slate-400">UI foundation only<br />Backend integration is deferred.</p>
+      <p className="border-t border-slate-100 p-5 text-xs leading-5 text-slate-500 dark:border-slate-800 dark:text-slate-400">Google authentication foundation<br />Other workflows are not yet implemented.</p>
     </aside>
   );
 }

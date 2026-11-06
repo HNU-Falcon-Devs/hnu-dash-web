@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This repository owns only the HNU DASH Next.js frontend. Its current phase establishes reusable UI infrastructure and a responsive application shell while product workflows and backend integration remain deferred.
+This repository owns only the HNU DASH Next.js frontend. The responsive shell now includes a Google OAuth authentication foundation; product management workflows remain deferred.
 
 ## Boundaries
 
@@ -20,7 +20,7 @@ Web owns frontend pages, reusable components, responsive layout, theme and desig
 
 The separate backend project will own PostgreSQL schemas, migrations, row-level security, authorization, validation, mutation logic, synchronization, reconciliation, and authoritative records. This repository must not invent that contract.
 
-The backend repository owns the canonical integration contract, currently proposed in [backend PR #2](https://github.com/HNU-Falcon-Devs/hnu-dash-backend/pull/2). The proposal is unapproved and does not represent a deployed API. Its operation names, payloads, permissions, and transport are not final; Web must not copy the contract or independently invent replacements.
+The backend repository owns the approved [Milestone 1 Web integration contract](https://github.com/HNU-Falcon-Devs/hnu-dash-backend/blob/main/docs/integration/milestone-1-web.md). A separate PR #2 proposal remains unapproved and must not be treated as deployed. Web must not independently invent operations or authorization rules.
 
 ### Mobile
 
@@ -28,6 +28,4 @@ The separate Flutter project owns QR attendance collection and offline mobile be
 
 ## Authentication
 
-Authentication provider: **TBD**.
-
-No authentication provider or flow is selected or implemented in this foundation.
+**Approved:** Google OAuth for verified `@hnu.edu.ph` Workspace accounts through Supabase Auth, with Backend enforcement via `restrict_hnu_signup`, `hnu_verified_user`, and RLS. HNU MIS is independent. Roles/permissions and student-ID binding are Backend-controlled; no signup self-privilege or student-ID claims. See [authentication setup](authentication.md).
