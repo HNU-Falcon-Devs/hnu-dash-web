@@ -20,7 +20,7 @@ Web will provide the screens for administrators, organization leaders, attendanc
 
 ## Current status
 
-**Development foundation ready; not yet usable for managing real events.** The responsive layout, themes, shared interface components, tests, and build checks are in place. Sign-in, event management, attendance views, and backend integration are still to be built. Authentication and the shared integration contract are not yet approved.
+**Google OAuth authentication foundation is implemented, pending hosted-provider configuration and live verification.** The responsive shell, themes, tests, and build checks remain. Event management and attendance workflows are not implemented. Backend Milestone 1 is the approved integration baseline.
 
 ## Developer setup
 
@@ -42,4 +42,4 @@ npm test
 npm run build
 ```
 
-No backend credentials or hosted services are required to run the current frontend foundation.
+Authentication requires public Supabase project configuration in a local ignored `.env.local` file. See [Google OAuth setup](docs/authentication.md). No service-role keys or Google client secrets belong in browser variables.

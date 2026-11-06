@@ -6,7 +6,7 @@
 - Keep changes scoped to the request. Do not silently broaden requirements or invent backend contracts.
 - Do not add Supabase migrations, PostgreSQL schemas, backend services, Edge Functions, or authoritative data and authorization logic here.
 - Do not implement Flutter, offline collection, or QR scanning functionality here; mobile is maintained separately.
-- The authentication provider is TBD. Do not choose or implement one without explicit direction.
+- Google OAuth for verified @hnu.edu.ph Google Workspace accounts is approved by the WhiteTree Orchestrator. Use Supabase Auth sessions and the Backend's authoritative identity/permission controls; do not implement an alternate provider or independent authorization.
 - Never commit credentials, local environment files, production data, or secrets.
 - Avoid speculative abstractions, unnecessary dependencies, and premature domain implementation.
 - Preserve strict TypeScript and existing lint standards; do not weaken validation to make checks pass.

@@ -2,7 +2,7 @@
 
 ## Scope
 
-Keep contributions within the Next.js frontend boundary. Do not add backend schemas, Supabase migrations, authoritative authorization logic, mobile/QR scanning functionality, or invented backend contracts. Authentication provider selection and backend integration remain deferred.
+Keep contributions within the Next.js frontend boundary. Do not add backend schemas, Supabase migrations, authoritative authorization logic, mobile/QR scanning functionality, or invented backend contracts. Google OAuth via Supabase Auth is approved for authentication only; remaining backend product workflows are deferred.
 
 ## Setup
 
