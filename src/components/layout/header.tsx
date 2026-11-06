@@ -1,10 +1,11 @@
 'use client';
 
 import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { SignOutButton } from '@/components/auth/sign-out-button';
 
-export interface HeaderProps { onMenuClick?: () => void; isMenuOpen?: boolean }
+export interface HeaderProps { onMenuClick?: () => void; isMenuOpen?: boolean; userEmail?: string }
 
-export function Header({ onMenuClick, isMenuOpen = false }: HeaderProps = {}) {
+export function Header({ onMenuClick, isMenuOpen = false, userEmail }: HeaderProps = {}) {
   return (
     <header className="sticky top-0 z-30 flex min-h-16 items-center justify-between gap-4 border-b border-slate-200 bg-white px-4 shadow-xs dark:border-slate-800 dark:bg-slate-900 sm:px-6">
       <div className="flex min-w-0 items-center gap-3">
@@ -13,7 +14,7 @@ export function Header({ onMenuClick, isMenuOpen = false }: HeaderProps = {}) {
         </button>
         <div><p className="text-xs font-semibold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">Web foundation</p><p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100 sm:text-base">Frontend workspace</p></div>
       </div>
-      <ThemeToggle />
+      <div className="flex items-center gap-3"><ThemeToggle />{userEmail !== undefined && <><span className="hidden max-w-48 truncate text-xs text-slate-600 dark:text-slate-300 lg:inline" title={userEmail}>{userEmail}</span><SignOutButton /></>}</div>
     </header>
   );
 }
