@@ -97,7 +97,7 @@ is protected; other navigation areas are still presentation-only.
 
 ## References
 
-- [Supabase Google login](https://supabase.com/docs/guides/auth/social-login/auth-google)
+- [Supabase Google login](https://supabase.com/docs/guides/auth/social-sign-in/auth-google)
 - [Supabase Next.js SSR](https://supabase.com/docs/guides/auth/server-side/creating-a-client)
 - [Supabase redirect URLs](https://supabase.com/docs/guides/auth/redirect-urls)
 - [Google OAuth consent](https://developers.google.com/workspace/guides/configure-oauth-consent)
