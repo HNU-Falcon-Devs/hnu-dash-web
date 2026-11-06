@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { AppShell } from "@/components/layout/app-shell";
 import { getAuthState } from "@/lib/auth";
 
@@ -19,7 +20,7 @@ export default async function Home() {
               ? "The development authentication settings have not been configured."
               : "We could not verify your access right now. Please try again."}
           </p>
-          <a className="mt-5 inline-block text-sm font-semibold text-emerald-700 underline dark:text-emerald-400" href="/">Try again</a>
+          <Link className="mt-5 inline-block text-sm font-semibold text-emerald-700 underline dark:text-emerald-400" href="/">Try again</Link>
         </section>
       </main>
     );
