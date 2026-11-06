@@ -5,7 +5,7 @@ import { Sidebar } from './sidebar';
 import { Header } from './header';
 import { WorkspaceView } from './workspace-view';
 
-export function AppShell({ userEmail }: { userEmail?: string } = {}) {
+export function AppShell({ userEmail, activePath = "/", children }: { userEmail?: string; activePath?: "/" | "/organizations"; children?: React.ReactNode } = {}) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const drawerRef = React.useRef<HTMLDivElement>(null);
 
@@ -59,7 +59,7 @@ export function AppShell({ userEmail }: { userEmail?: string } = {}) {
   return (
     <div className="flex min-h-screen bg-slate-50 font-sans text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100">
       {/* Desktop navigation */}
-      <Sidebar className="hidden md:flex" />
+      <Sidebar className="hidden md:flex" activePath={activePath} />
 
       {/* Mobile navigation drawer */}
       {isMobileMenuOpen && (
@@ -71,6 +71,7 @@ export function AppShell({ userEmail }: { userEmail?: string } = {}) {
           />
           <div ref={drawerRef} tabIndex={-1} className="relative z-10 w-72 max-w-[85vw] h-full shadow-2xl bg-white dark:bg-slate-900 animate-in slide-in-from-left duration-200">
             <Sidebar
+              activePath={activePath}
               showCloseButton
               onClose={() => setIsMobileMenuOpen(false)}
               onItemClick={() => setIsMobileMenuOpen(false)}
@@ -83,7 +84,7 @@ export function AppShell({ userEmail }: { userEmail?: string } = {}) {
       <div className="flex-1 flex flex-col min-w-0">
         <Header onMenuClick={() => setIsMobileMenuOpen(true)} isMenuOpen={isMobileMenuOpen} userEmail={userEmail} />
         <main className="flex-1 p-3.5 sm:p-6 md:p-8 overflow-y-auto">
-          <WorkspaceView />
+          {children ?? <WorkspaceView />}
         </main>
       </div>
     </div>
