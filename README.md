@@ -20,7 +20,7 @@ Web will provide the screens for administrators, organization leaders, attendanc
 
 ## Current status
 
-**Google OAuth authentication foundation is implemented, pending hosted-provider configuration and live verification.** The responsive shell, themes, tests, and build checks remain. Event management and attendance workflows are not implemented. Backend Milestone 1 is the approved integration baseline.
+**Google OAuth is integrated with the hosted development project.** Organization listing and administrator-only creation are available at `/organizations` through the approved Backend Milestone 1 contract. Other event-management and attendance workflows remain unimplemented. The responsive shell, themes, tests, and build checks remain.
 
 ## Developer setup
 
