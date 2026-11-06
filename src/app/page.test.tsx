@@ -10,7 +10,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }),
 }));
 
-beforeEach(() => vi.resetAllMocks());
+beforeEach(() => vi.clearAllMocks());
 
 describe("protected home page", () => {
   it("renders the existing responsive workspace only for verified users", async () => {
