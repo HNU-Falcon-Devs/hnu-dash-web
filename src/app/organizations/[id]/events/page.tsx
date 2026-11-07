@@ -98,6 +98,10 @@ export default async function OrganizationEventsPage({ params }: { params: Promi
                             <div><dt className="inline font-medium">Ends: </dt><dd className="inline">{formatManila(event.ends_at)}</dd></div>
                             <div><dt className="inline font-medium">Target years: </dt><dd className="inline">{event.target_year_levels.join(", ")}</dd></div>
                           </dl>
+                          <Link href={`/organizations/${id}/events/${event.id}/checkpoints`}
+                            className="inline-block text-sm font-medium text-emerald-700 underline dark:text-emerald-400">
+                            View checkpoints
+                          </Link>
                           {canManage && event.state === "DRAFT" && event.roster_frozen_at === null && (
                             <details className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
                               <summary className="cursor-pointer text-sm font-medium text-emerald-700 dark:text-emerald-400">
