@@ -47,6 +47,7 @@ describe("protected organizations directory", () => {
 
     const list = screen.getByRole("list", { name: "Organizations" });
     expect(within(list).getByText("COECS")).toBeInTheDocument();
+    expect(within(list).getByRole("link", { name: "COECS" })).toHaveAttribute("href", "/organizations/org-1");
     expect(within(list).getByText("coecs")).toBeInTheDocument();
     expect(within(list).getByText("Active")).toBeInTheDocument();
     expect(within(list).getByText("Inactive")).toBeInTheDocument();
