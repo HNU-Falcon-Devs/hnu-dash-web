@@ -102,6 +102,12 @@ export default async function OrganizationEventsPage({ params }: { params: Promi
                             className="inline-block text-sm font-medium text-emerald-700 underline dark:text-emerald-400">
                             View checkpoints
                           </Link>
+                          {canManage && (
+                            <Link href={`/organizations/${id}/events/${event.id}/roster`}
+                              className="ml-4 inline-block text-sm font-medium text-emerald-700 underline dark:text-emerald-400">
+                              Manage roster
+                            </Link>
+                          )}
                           {canManage && event.state === "DRAFT" && event.roster_frozen_at === null && (
                             <details className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
                               <summary className="cursor-pointer text-sm font-medium text-emerald-700 dark:text-emerald-400">
