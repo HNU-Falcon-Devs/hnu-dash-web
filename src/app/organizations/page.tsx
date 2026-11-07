@@ -63,6 +63,12 @@ export default async function OrganizationsPage() {
             Organizations visible to your account. Access is controlled by HNU DASH.
           </p>
         </div>
+
+        {isAdmin && (
+          <Link href="/roster/import" className="inline-block text-sm font-semibold text-emerald-700 underline dark:text-emerald-400">
+            Import student roster (admin only)
+          </Link>
+        )}
         <div className={isAdmin ? "grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(19rem,0.85fr)]" : "space-y-6"}>
           <Card>
             <CardHeader>
