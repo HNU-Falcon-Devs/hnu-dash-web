@@ -128,7 +128,7 @@ describe("checkpoint creation", () => {
   it("reports duplicate labels, freeze races, and rejects errors without leaking SQL", async () => {
     for (const [code, expected] of [
       ["23505", "already exists"], ["42501", "no longer editable"],
-      ["22023", "within"], ["23514", "rejected"],
+      ["22023", "inside"], ["23514", "rejected"],
     ]) {
       createdSingle.mockResolvedValueOnce({ data: null, error: { code, message: "private SQL" } });
       const state = await createCheckpoint(idle, fields());
