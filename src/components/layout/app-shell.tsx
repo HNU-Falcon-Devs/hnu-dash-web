@@ -5,7 +5,7 @@ import { Sidebar } from './sidebar';
 import { Header } from './header';
 import { WorkspaceView } from './workspace-view';
 
-export function AppShell({ userEmail, activePath = "/", children }: { userEmail?: string; activePath?: "/" | "/organizations"; children?: React.ReactNode } = {}) {
+export function AppShell({ userEmail, activePath = "/", children }: { userEmail?: string; activePath?: "/" | "/organizations" | "/events"; children?: React.ReactNode } = {}) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const drawerRef = React.useRef<HTMLDivElement>(null);
 

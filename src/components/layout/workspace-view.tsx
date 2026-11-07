@@ -13,9 +13,9 @@ export function WorkspaceView() {
         <p className="mt-3 max-w-2xl text-sm leading-6 text-emerald-50 sm:text-base">A clean, responsive frontend foundation for the future HNU DASH management experience.</p>
       </section>
       <section aria-labelledby="foundation-heading">
-        <div className="mb-4"><h2 id="foundation-heading" className="text-xl font-bold text-slate-900 dark:text-slate-100">Frontend workspace</h2><p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Organization management is available. Events and attendance are reserved for future backend-backed workflows.</p></div>
+        <div className="mb-4"><h2 id="foundation-heading" className="text-xl font-bold text-slate-900 dark:text-slate-100">Frontend workspace</h2><p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Organization management and draft events are available. Attendance remains a future workflow.</p></div>
         <div className="grid gap-4 md:grid-cols-3">
-          {areas.map((area) => <Card id={area.toLowerCase()} key={area}><CardHeader><CardTitle>{area}</CardTitle><CardDescription>{area === 'Organizations' ? 'Browse organizations visible to your account.' : 'Reserved for a future backend-backed workflow.'}</CardDescription></CardHeader><CardContent>{area === 'Organizations' ? <Link href="/organizations" className="text-sm font-semibold text-emerald-700 underline dark:text-emerald-400">Open organizations</Link> : <Badge variant="outline">Not implemented</Badge>}</CardContent></Card>)}
+          {areas.map((area) => <Card id={area.toLowerCase()} key={area}><CardHeader><CardTitle>{area}</CardTitle><CardDescription>{area === 'Organizations' ? 'Browse organizations visible to your account.' : area === 'Events' ? 'View and manage organization-scoped draft events.' : 'Reserved for a future backend-backed workflow.'}</CardDescription></CardHeader><CardContent>{area === 'Organizations' || area === 'Events' ? <Link href={area === 'Organizations' ? '/organizations' : '/events'} className="text-sm font-semibold text-emerald-700 underline dark:text-emerald-400">{area === 'Organizations' ? 'Open organizations' : 'Open events'}</Link> : <Badge variant="outline">Not implemented</Badge>}</CardContent></Card>)}
         </div>
       </section>
     </div>

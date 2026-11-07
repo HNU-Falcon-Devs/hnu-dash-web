@@ -20,7 +20,7 @@ Web will provide the screens for administrators, organization leaders, attendanc
 
 ## Current status
 
-**Google OAuth is integrated with the hosted development project.** Organization listing and creation are available at `/organizations`, and authorized users can view organization memberships at `/organizations/[id]`. Platform administrators can assign and update membership roles/status through the approved Backend contract using operator-supplied Auth UUIDs. Other event-management and attendance workflows remain unimplemented. The responsive shell, themes, tests, and build checks remain.
+**Google OAuth is integrated with the hosted development project.** Organization listing and creation are available at `/organizations`, and authorized users can view organization memberships at `/organizations/[id]`. Platform administrators can assign and update membership roles/status through the approved Backend contract using operator-supplied Auth UUIDs. Draft event listing, creation and editing are available through `/events` and `/organizations/[id]/events`, for Backend-authorized platform administrators and active organization leaders; staff have read-only access. Event times use Asia/Manila. Publishing, roster freezing, checkpoint management and attendance remain unimplemented. The responsive shell, themes, tests, and build checks remain.
 
 ## Developer setup
 
