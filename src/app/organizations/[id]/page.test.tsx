@@ -58,6 +58,7 @@ describe("organization details and RLS-scoped members", () => {
 
     expect(screen.getByRole("heading", { name: "College Organization" })).toBeInTheDocument();
     expect(screen.getByText("college-org")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View organization events" })).toHaveAttribute("href", `/organizations/${ORG}/events`);
     const list = screen.getByRole("list", { name: "Organization memberships" });
     expect(within(list).getByText(USER)).toBeInTheDocument();
     expect(within(list).getByText("leader")).toBeInTheDocument();

@@ -22,8 +22,9 @@ describe("protected home page", () => {
     expect(screen.getByRole("heading", { level: 2, name: "HNU DASH Web" })).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Primary navigation" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sign out" })).toBeInTheDocument();
-    expect(screen.getByText(/Organization management available/)).toBeInTheDocument();
+    expect(screen.getByText(/Organizations and draft events available/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open organizations" })).toHaveAttribute("href", "/organizations");
+    expect(screen.getByRole("link", { name: "Open events" })).toHaveAttribute("href", "/events");
   });
 
   it("redirects signed-out visitors to login", async () => {

@@ -93,6 +93,10 @@ export default async function OrganizationDetailsPage({
                 </Badge>
               </div>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400 break-all">{organization.slug}</p>
+              <Link href={`/organizations/${id}/events`}
+                className="mt-3 inline-block text-sm font-semibold text-emerald-700 underline dark:text-emerald-400">
+                View organization events
+              </Link>
             </div>
             <div className={isAdmin ? "grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(19rem,0.85fr)]" : "space-y-6"}>
               <Card>

@@ -3,11 +3,11 @@
 import { cn } from '@/utils/cn';
 import Link from 'next/link';
 
-export interface SidebarProps { className?: string; onItemClick?: () => void; onClose?: () => void; showCloseButton?: boolean; activePath?: '/' | '/organizations' }
+export interface SidebarProps { className?: string; onItemClick?: () => void; onClose?: () => void; showCloseButton?: boolean; activePath?: '/' | '/organizations' | '/events' }
 
 const navigation = [
   { label: 'Dashboard', href: '/' },
-  { label: 'Events', href: '/#events' },
+  { label: 'Events', href: '/events' },
   { label: 'Organizations', href: '/organizations' },
   { label: 'Attendance', href: '/#attendance' },
 ] as const;
@@ -30,7 +30,7 @@ export function Sidebar({ className, onItemClick, onClose, showCloseButton = fal
           </Link>;
         })}
       </nav>
-      <p className="border-t border-slate-100 p-5 text-xs leading-5 text-slate-500 dark:border-slate-800 dark:text-slate-400">Organization management available<br />Events and attendance coming later.</p>
+      <p className="border-t border-slate-100 p-5 text-xs leading-5 text-slate-500 dark:border-slate-800 dark:text-slate-400">Organizations and draft events available<br />Attendance coming later.</p>
     </aside>
   );
 }
