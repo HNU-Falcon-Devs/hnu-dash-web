@@ -53,6 +53,8 @@ describe("organization-scoped draft event page", () => {
     expect(rpc).toHaveBeenCalledWith("can_manage_org", { org_id: ORG });
     const list = screen.getByRole("list", { name: "Organization events" });
     expect(within(list).getByText("General Assembly")).toBeInTheDocument();
+    expect(within(list).getByRole("link", { name: "View checkpoints" }))
+      .toHaveAttribute("href", `/organizations/${ORG}/events/${EVENT}/checkpoints`);
     expect(within(list).getByText("DRAFT")).toBeInTheDocument();
     expect(within(list).getByText("1, 3")).toBeInTheDocument();
     expect(within(list).getByText(/9:00/)).toBeInTheDocument();
