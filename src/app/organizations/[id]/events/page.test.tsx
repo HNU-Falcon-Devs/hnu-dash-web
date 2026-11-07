@@ -55,6 +55,7 @@ describe("organization-scoped draft event page", () => {
     expect(within(list).getByText("General Assembly")).toBeInTheDocument();
     expect(within(list).getByRole("link", { name: "View checkpoints" }))
       .toHaveAttribute("href", `/organizations/${ORG}/events/${EVENT}/checkpoints`);
+    expect(screen.queryByRole("link", { name: "Manage roster" })).not.toBeInTheDocument();
     expect(within(list).getByText("DRAFT")).toBeInTheDocument();
     expect(within(list).getByText("1, 3")).toBeInTheDocument();
     expect(within(list).getByText(/9:00/)).toBeInTheDocument();
@@ -66,6 +67,8 @@ describe("organization-scoped draft event page", () => {
     rpc.mockResolvedValue({ data: true, error: null });
     await display();
     expect(screen.getByRole("form", { name: "Create draft event" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Manage roster" }))
+      .toHaveAttribute("href", `/organizations/${ORG}/events/${EVENT}/roster`);
     const edit = screen.getByRole("form", { name: "Edit draft event General Assembly" });
     expect(edit).toBeInTheDocument();
     expect(within(edit).getByLabelText("Event title")).toHaveValue("General Assembly");
