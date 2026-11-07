@@ -52,6 +52,7 @@ describe("protected organizations directory", () => {
     expect(within(list).getByText("Active")).toBeInTheDocument();
     expect(within(list).getByText("Inactive")).toBeInTheDocument();
     expect(screen.queryByRole("form", { name: "Create organization" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Import student roster (admin only)" })).not.toBeInTheDocument();
 
     const nav = screen.getByRole("navigation", { name: "Primary navigation" });
     expect(within(nav).getByRole("link", { name: "Organizations" })).toHaveAttribute("href", "/organizations");
@@ -63,6 +64,8 @@ describe("protected organizations directory", () => {
     await showPage();
     expect(screen.getByRole("form", { name: "Create organization" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Create organization" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Import student roster (admin only)" }))
+      .toHaveAttribute("href", "/roster/import");
     expect(screen.getByRole("textbox", { name: "Name" })).toBeRequired();
     expect(screen.getByRole("textbox", { name: "Slug" })).toBeRequired();
   });
