@@ -159,8 +159,8 @@ describe("event Staff assignment action", () => {
 
 describe("Staff revocation action", () => {
   it("requires explicit confirmation and UUIDs before any server reads", async () => {
-    expect((await revokeEventStaff(initial, form("revoke", { confirmed: false })).message).toContain("Confirm revocation");
-    expect((await revokeEventStaff(initial, form("revoke", { assignmentId: "bad" })).status).toBe("error");
+    expect((await revokeEventStaff(initial, form("revoke", { confirmed: false }))).message).toContain("Confirm revocation");
+    expect((await revokeEventStaff(initial, form("revoke", { assignmentId: "bad" }))).status).toBe("error");
     expect(createClient).not.toHaveBeenCalled();
   });
 
@@ -199,8 +199,8 @@ describe("Staff revocation action", () => {
 
 describe("controlled event activation action", () => {
   it("requires deliberate confirmation and valid IDs", async () => {
-    expect((await activateEvent(initial, form("open", { confirmed: false })).message).toContain("Confirm event activation");
-    expect((await activateEvent(initial, form("open", { orgId: "bad" })).status).toBe("error");
+    expect((await activateEvent(initial, form("open", { confirmed: false }))).message).toContain("Confirm event activation");
+    expect((await activateEvent(initial, form("open", { orgId: "bad" }))).status).toBe("error");
     expect(getAuthState).not.toHaveBeenCalled();
   });
 
