@@ -5,7 +5,7 @@ import { getAuthState } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import EventOperationsPage from "./page";
 
-const refresh = vi.fn();
+const { refresh } = vi.hoisted(() => ({ refresh: vi.fn() }));
 
 vi.mock("@/lib/auth", () => ({ getAuthState: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
