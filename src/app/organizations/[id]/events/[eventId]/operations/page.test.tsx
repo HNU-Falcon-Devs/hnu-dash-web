@@ -376,6 +376,26 @@ describe("provisional checkpoint coverage", () => {
     expect(screen.queryByText("private database detail")).not.toBeInTheDocument();
   });
 
+  it("rechecks manager authorization before refreshing existing evidence", async () => {
+    let permissionChecks = 0;
+    rpc.mockImplementation(async (name: string) => {
+      if (name === "can_manage_org") {
+        permissionChecks += 1;
+        return { data: permissionChecks === 1, error: null };
+      }
+      if (name === "get_event_checkpoint_coverage") return { data: [acceptedRow], error: null };
+      return { data: null, error: null };
+    });
+    await show();
+    expect(screen.getByText("Accepted receipt recorded")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Refresh checkpoint coverage" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("unavailable for this account or event"));
+
+    expect(coverageCalls()).toHaveLength(1);
+    expect(screen.getByText(/Previously loaded results remain displayed/)).toBeInTheDocument();
+  });
+
   it("isolates network failures from the existing Operations workspace", async () => {
     rpc.mockImplementation(async (name: string) => {
       if (name === "can_manage_org") return { data: true, error: null };
