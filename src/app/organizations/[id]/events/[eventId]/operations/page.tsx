@@ -3,12 +3,11 @@ import { notFound, redirect } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getAuthState } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { formatManila, isUuid } from "../../validation";
 import { AssignEventStaffForm, RevokeEventStaffForm, OpenEventForm } from "./operation-forms";
-import { CoverageRefreshButton } from "./coverage-refresh-button";
+import { CoverageEvidencePanel } from "./coverage-refresh-button";
 
 export const dynamic = "force-dynamic";
 
@@ -92,38 +91,6 @@ function getCoverageErrorMessage(code: string | undefined): string {
     return "Checkpoint coverage is temporarily unavailable because the Backend capability could not be found.";
   }
   return "Could not load checkpoint coverage. Check your connection and try again.";
-}
-
-function getPageCheckpointStats(rows: CoverageRow[]) {
-  const stats = new Map<string, {
-    checkpointId: string;
-    label: string;
-    direction: string;
-    sortOrder: number;
-    total: number;
-    accepted: number;
-  }>();
-
-  for (const row of rows) {
-    const current = stats.get(row.checkpoint_id);
-    if (current) {
-      current.total += 1;
-      if (row.has_accepted_scan) current.accepted += 1;
-    } else {
-      stats.set(row.checkpoint_id, {
-        checkpointId: row.checkpoint_id,
-        label: row.checkpoint_label,
-        direction: row.checkpoint_direction,
-        sortOrder: row.checkpoint_sort_order,
-        total: 1,
-        accepted: row.has_accepted_scan ? 1 : 0,
-      });
-    }
-  }
-
-  return Array.from(stats.values()).sort((a, b) =>
-    a.sortOrder - b.sortOrder || a.checkpointId.localeCompare(b.checkpointId)
-  );
 }
 
 export default async function EventOperationsPage({
@@ -246,7 +213,38 @@ export default async function EventOperationsPage({
     }
   }
 
-  const pageCheckpointStats = getPageCheckpointStats(coverageRows);
+  async function refreshCoveragePage(): Promise<{ rows: CoverageRow[] } | { error: string }> {
+    "use server";
+
+    try {
+      const refreshedAuth = await getAuthState();
+      if (refreshedAuth.status !== "authenticated") {
+        return { error: "Checkpoint coverage is unavailable for this account or event." };
+      }
+
+      const refreshClient = await createClient();
+      const permission = await refreshClient.rpc("can_manage_org", { org_id: orgId });
+      if (permission.error || permission.data !== true) {
+        return { error: "Checkpoint coverage is unavailable for this account or event." };
+      }
+
+      const result = await refreshClient.rpc("get_event_checkpoint_coverage", {
+        eid: eventId,
+        p_limit: COVERAGE_PAGE_SIZE,
+        p_offset: coverageOffset,
+      });
+      if (result.error) {
+        return { error: getCoverageErrorMessage(result.error.code) };
+      }
+      if (Array.isArray(result.data)) {
+        return { rows: result.data as unknown as CoverageRow[] };
+      }
+      return { error: "The Backend returned an unexpected checkpoint coverage response." };
+    } catch {
+      return { error: "Could not refresh checkpoint coverage. Check your connection and try again." };
+    }
+  }
+
   const active = assignments.filter(a => a.revoked_at === null);
   const revoked = assignments.filter(a => a.revoked_at !== null);
   const assignedUsers = new Set(active.map(a => a.staff_user_id));
@@ -264,7 +262,6 @@ export default async function EventOperationsPage({
     && Boolean(event.roster_frozen_at) && (rosterCount ?? 0) > 0 && validWindows;
   const root = "/organizations/" + orgId + "/events/" + eventId + "/operations";
   const pageStart = coverageOffset + 1;
-  const pageEnd = coverageOffset + coverageRows.length;
 
   return (
     <AppShell userEmail={auth.email} activePath="/events">
@@ -330,10 +327,7 @@ export default async function EventOperationsPage({
                       Read-only accepted online scan evidence against the frozen roster.
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="warning">Provisional</Badge>
-                    {coveragePrerequisitesMet && <CoverageRefreshButton />}
-                  </div>
+                  <Badge variant="warning">Provisional</Badge>
                 </div>
               </CardHeader>
               <CardContent className="space-y-5 text-sm">
@@ -368,109 +362,23 @@ export default async function EventOperationsPage({
                   <p role="status" className="text-slate-600 dark:text-slate-300">
                     No frozen roster entries are available for checkpoint coverage.
                   </p>
-                ) : coverageErrorMessage ? (
-                  <p role="alert" className="text-rose-700 dark:text-rose-400">
-                    {coverageErrorMessage} <Link href={coverageHref(root, query, coveragePage)} className="underline">Retry</Link>
-                  </p>
-                ) : coverageLoaded && coverageRows.length === 0 ? (
-                  <p role="status" className="text-slate-600 dark:text-slate-300">
-                    No checkpoint evidence rows are available on this page.
-                  </p>
-                ) : coverageLoaded ? (
-                  <>
-                    <section aria-labelledby="coverage-page-stats-title" className="space-y-3">
-                      <div>
-                        <h4 id="coverage-page-stats-title" className="font-semibold">Checkpoint statistics on this page</h4>
-                        <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                          Accepted receipts / rows returned for each checkpoint on this page only. These are not event-wide totals.
-                        </p>
-                      </div>
-                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                        {pageCheckpointStats.map(stat => (
-                          <div key={stat.checkpointId} className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
-                            <p className="font-medium">{stat.label} <span className="text-slate-500">({stat.direction})</span></p>
-                            <p className="mt-1 tabular-nums">
-                              <strong>{stat.accepted} / {stat.total}</strong>
-                              <span className="text-slate-600 dark:text-slate-400"> accepted / rows shown</span>
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    </section>
-
-                    <section aria-labelledby="coverage-evidence-title" className="space-y-3">
-                      <div>
-                        <h4 id="coverage-evidence-title" className="font-semibold">Student/checkpoint evidence</h4>
-                        <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                          Showing rows {pageStart.toLocaleString("en-PH")}–{pageEnd.toLocaleString("en-PH")} of {totalEvidenceSlots?.toLocaleString("en-PH")} evidence combinations.
-                        </p>
-                      </div>
-                      <Table>
-                        <caption className="sr-only">Provisional accepted online scan evidence by student and checkpoint</caption>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead scope="col">Student ID</TableHead>
-                            <TableHead scope="col">Checkpoint</TableHead>
-                            <TableHead scope="col">Direction</TableHead>
-                            <TableHead scope="col">Evidence</TableHead>
-                            <TableHead scope="col">Backend received at (Asia/Manila)</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {coverageRows.map((row, index) => (
-                            <TableRow key={row.student_id + ":" + row.checkpoint_id + ":" + index}>
-                              <TableCell><code className="whitespace-nowrap font-mono">{row.student_id}</code></TableCell>
-                              <TableCell>{row.checkpoint_label}</TableCell>
-                              <TableCell><Badge variant="outline">{row.checkpoint_direction}</Badge></TableCell>
-                              <TableCell>
-                                <Badge variant={row.has_accepted_scan ? "success" : "outline"}>
-                                  {row.has_accepted_scan
-                                    ? "Accepted receipt recorded"
-                                    : "No accepted receipt recorded"}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>
-                                {row.has_accepted_scan
-                                  ? row.accepted_received_at
-                                    ? <time dateTime={row.accepted_received_at}>{formatManila(row.accepted_received_at)}</time>
-                                    : "Receipt timestamp unavailable"
-                                  : "—"}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </section>
-
-                    {pageCount > 1 && (
-                      <nav aria-label="Checkpoint coverage pagination"
-                        className="flex flex-wrap items-center justify-between gap-3">
-                        <p className="text-xs text-slate-600 dark:text-slate-400">
-                          Page {coveragePage.toLocaleString("en-PH")} of {pageCount.toLocaleString("en-PH")} · {coverageRows.length.toLocaleString("en-PH")} rows on this page
-                        </p>
-                        <div className="flex items-center gap-3">
-                          {coveragePage > 1 ? (
-                            <Link href={coverageHref(root, query, coveragePage - 1)}
-                              aria-label="Previous coverage page"
-                              className="font-medium text-emerald-700 underline dark:text-emerald-400">
-                              Previous
-                            </Link>
-                          ) : (
-                            <span aria-disabled="true" className="text-slate-400">Previous</span>
-                          )}
-                          {coveragePage < pageCount ? (
-                            <Link href={coverageHref(root, query, coveragePage + 1)}
-                              aria-label="Next coverage page"
-                              className="font-medium text-emerald-700 underline dark:text-emerald-400">
-                              Next
-                            </Link>
-                          ) : (
-                            <span aria-disabled="true" className="text-slate-400">Next</span>
-                          )}
-                        </div>
-                      </nav>
-                    )}
-                  </>
+                ) : coveragePrerequisitesMet ? (
+                  <CoverageEvidencePanel
+                    key={coveragePage}
+                    initialRows={coverageRows}
+                    initialError={coverageErrorMessage}
+                    refreshAction={refreshCoveragePage}
+                    page={coveragePage}
+                    pageCount={pageCount}
+                    pageStart={pageStart}
+                    totalEvidenceSlots={totalEvidenceSlots ?? 0}
+                    previousHref={coveragePage > 1
+                      ? coverageHref(root, query, coveragePage - 1)
+                      : undefined}
+                    nextHref={coveragePage < pageCount
+                      ? coverageHref(root, query, coveragePage + 1)
+                      : undefined}
+                  />
                 ) : null}
 
                 <p className="text-xs text-slate-600 dark:text-slate-400" role="note">
