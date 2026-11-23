@@ -135,7 +135,7 @@ export default async function EventOperationsPage({
 }) {
   const [{ id: orgId, eventId }, query] = await Promise.all([
     params,
-    searchParams ?? Promise.resolve({}),
+    searchParams ?? Promise.resolve<OperationsSearchParams>({}),
   ]);
   if (!isUuid(orgId) || !isUuid(eventId)) notFound();
 
