@@ -187,7 +187,6 @@ export default async function EventOperationsPage({
 
   let coverageRows: CoverageRow[] = [];
   let coverageErrorMessage = "";
-  let coverageLoaded = false;
   const coveragePrerequisitesMet = Boolean(
     managerAuthorized && !errorMessage && event?.roster_frozen_at
       && rosterCount !== null && rosterCount > 0 && checkpoints.length > 0
@@ -204,7 +203,6 @@ export default async function EventOperationsPage({
         coverageErrorMessage = getCoverageErrorMessage(result.error.code);
       } else if (Array.isArray(result.data)) {
         coverageRows = result.data as unknown as CoverageRow[];
-        coverageLoaded = true;
       } else {
         coverageErrorMessage = "The Backend returned an unexpected checkpoint coverage response.";
       }
