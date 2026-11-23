@@ -362,7 +362,7 @@ export default async function EventOperationsPage({
                   </p>
                 ) : coveragePrerequisitesMet ? (
                   <CoverageEvidencePanel
-                    key={coveragePage}
+                    key={eventId + ":" + coveragePage}
                     initialRows={coverageRows}
                     initialError={coverageErrorMessage}
                     refreshAction={refreshCoveragePage}
