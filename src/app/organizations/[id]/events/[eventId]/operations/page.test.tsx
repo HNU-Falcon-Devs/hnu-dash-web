@@ -213,7 +213,15 @@ describe("scoped event Operations workspace", () => {
     expect(coverageCalls()).toHaveLength(0);
   });
 
-  it("hides activation for invalid windows and zero frozen records", async () => {
+  it("does not request coverage when the frozen roster has no entries", async () => {
+    rosterEq.mockResolvedValueOnce({ count: 0, error: null });
+    await show();
+    expect(screen.getByText("No frozen roster entries are available for checkpoint coverage.")).toBeInTheDocument();
+    expect(screen.queryByRole("form", { name: "Activate event" })).not.toBeInTheDocument();
+    expect(coverageCalls()).toHaveLength(0);
+  });
+
+  it("hides activation for invalid checkpoint windows", async () => {
     checkpointOrder.mockResolvedValueOnce({ data: [{
       ...checkpoint, id: "bad-window",
       opens_at: "2026-12-04T00:00:00Z", closes_at: "2026-12-05T03:00:00Z",
