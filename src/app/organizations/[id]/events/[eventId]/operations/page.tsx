@@ -7,8 +7,11 @@ import { getAuthState } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { formatManila, isUuid } from "../../validation";
 import { AssignEventStaffForm, RevokeEventStaffForm, OpenEventForm } from "./operation-forms";
+import { CoverageEvidencePanel } from "./coverage-refresh-button";
 
 export const dynamic = "force-dynamic";
+
+const COVERAGE_PAGE_SIZE = 200;
 
 type Event = {
   id: string;
@@ -30,14 +33,77 @@ type Assignment = {
   revoked_by: string | null;
 };
 type Member = { user_id: string };
-type CheckpointWindow = { id: string; opens_at: string; closes_at: string };
+type CheckpointWindow = {
+  id: string;
+  label: string;
+  direction: string;
+  sort_order: number;
+  opens_at: string;
+  closes_at: string;
+};
+type CoverageRow = {
+  student_id: string;
+  checkpoint_id: string;
+  checkpoint_label: string;
+  checkpoint_direction: string;
+  checkpoint_sort_order: number;
+  has_accepted_scan: boolean;
+  accepted_received_at: string | null;
+};
+type OperationsSearchParams = Record<string, string | string[] | undefined>;
+
+function parseCoveragePage(value: string | string[] | undefined): number {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (!raw || !/^[1-9]\d*$/.test(raw)) return 1;
+  const page = Number(raw);
+  return Number.isSafeInteger(page) ? page : 1;
+}
+
+function coverageHref(
+  root: string,
+  searchParams: OperationsSearchParams,
+  page: number,
+): string {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(searchParams)) {
+    if (key === "coverage_page" || value === undefined) continue;
+    if (Array.isArray(value)) {
+      value.forEach(item => query.append(key, item));
+    } else {
+      query.set(key, value);
+    }
+  }
+  query.set("coverage_page", String(page));
+  return root + "?" + query.toString();
+}
+
+function getCoverageErrorMessage(code: string | undefined): string {
+  if (code === "42501") {
+    return "Checkpoint coverage is unavailable for this account or event.";
+  }
+  if (code === "55000") {
+    return "Checkpoint coverage requires a frozen event roster.";
+  }
+  if (code === "22023") {
+    return "The checkpoint coverage request was invalid. Refresh the page to try again.";
+  }
+  if (code === "PGRST202" || code === "42883") {
+    return "Checkpoint coverage is temporarily unavailable because the Backend capability could not be found.";
+  }
+  return "Could not load checkpoint coverage. Check your connection and try again.";
+}
 
 export default async function EventOperationsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string; eventId: string }>;
+  searchParams?: Promise<OperationsSearchParams>;
 }) {
-  const { id: orgId, eventId } = await params;
+  const [{ id: orgId, eventId }, query] = await Promise.all([
+    params,
+    searchParams ?? Promise.resolve<OperationsSearchParams>({}),
+  ]);
   if (!isUuid(orgId) || !isUuid(eventId)) notFound();
 
   const auth = await getAuthState();
@@ -54,15 +120,18 @@ export default async function EventOperationsPage({
   let checkpoints: CheckpointWindow[] = [];
   let errorMessage = "";
   let eventMissing = false;
+  let managerAuthorized = false;
+  let client: Awaited<ReturnType<typeof createClient>> | null = null;
 
   try {
-    const client = await createClient();
+    client = await createClient();
     const permission = await client.rpc("can_manage_org", { org_id: orgId });
     if (permission.error) {
       errorMessage = "Could not verify event-management permissions. Operations are unavailable.";
     } else if (permission.data !== true) {
       errorMessage = "Only authorized organization Leaders and platform Administrators may manage event operations.";
     } else {
+      managerAuthorized = true;
       const found = await client.from("events")
         .select("id,title,organization_id,state,starts_at,ends_at,roster_frozen_at,opened_at")
         .eq("organization_id", orgId).eq("id", eventId).maybeSingle();
@@ -81,7 +150,8 @@ export default async function EventOperationsPage({
             .eq("role", "staff").eq("active", true)
             .order("user_id", { ascending: true }),
           client.from("event_checkpoints")
-            .select("id,opens_at,closes_at").eq("event_id", eventId),
+            .select("id,label,direction,sort_order,opens_at,closes_at").eq("event_id", eventId)
+            .order("sort_order", { ascending: true }),
           event.roster_frozen_at
             ? client.from("event_roster")
               .select("student_id", { count: "exact", head: true }).eq("event_id", eventId)
@@ -105,6 +175,75 @@ export default async function EventOperationsPage({
   }
   if (eventMissing) notFound();
 
+  const totalEvidenceSlots = rosterCount === null ? null : rosterCount * checkpoints.length;
+  const pageCount = totalEvidenceSlots === null
+    ? 0
+    : Math.ceil(totalEvidenceSlots / COVERAGE_PAGE_SIZE);
+  const requestedCoveragePage = parseCoveragePage(query.coverage_page);
+  const coveragePage = pageCount > 0
+    ? Math.min(requestedCoveragePage, pageCount)
+    : 1;
+  const coverageOffset = (coveragePage - 1) * COVERAGE_PAGE_SIZE;
+
+  let coverageRows: CoverageRow[] = [];
+  let coverageErrorMessage = "";
+  const coveragePrerequisitesMet = Boolean(
+    managerAuthorized && !errorMessage && event?.roster_frozen_at
+      && rosterCount !== null && rosterCount > 0 && checkpoints.length > 0
+  );
+
+  if (coveragePrerequisitesMet && client) {
+    try {
+      const result = await client.rpc("get_event_checkpoint_coverage", {
+        eid: eventId,
+        p_limit: COVERAGE_PAGE_SIZE,
+        p_offset: coverageOffset,
+      });
+      if (result.error) {
+        coverageErrorMessage = getCoverageErrorMessage(result.error.code);
+      } else if (Array.isArray(result.data)) {
+        coverageRows = result.data as unknown as CoverageRow[];
+      } else {
+        coverageErrorMessage = "The Backend returned an unexpected checkpoint coverage response.";
+      }
+    } catch {
+      coverageErrorMessage = "Could not load checkpoint coverage. Check your connection and try again.";
+    }
+  }
+
+  // Re-authorize and refresh only this page's evidence, not the full Operations route.
+  async function refreshCoveragePage(): Promise<{ rows: CoverageRow[] } | { error: string }> {
+    "use server";
+
+    try {
+      const refreshedAuth = await getAuthState();
+      if (refreshedAuth.status !== "authenticated") {
+        return { error: "Checkpoint coverage is unavailable for this account or event." };
+      }
+
+      const refreshClient = await createClient();
+      const permission = await refreshClient.rpc("can_manage_org", { org_id: orgId });
+      if (permission.error || permission.data !== true) {
+        return { error: "Checkpoint coverage is unavailable for this account or event." };
+      }
+
+      const result = await refreshClient.rpc("get_event_checkpoint_coverage", {
+        eid: eventId,
+        p_limit: COVERAGE_PAGE_SIZE,
+        p_offset: coverageOffset,
+      });
+      if (result.error) {
+        return { error: getCoverageErrorMessage(result.error.code) };
+      }
+      if (Array.isArray(result.data)) {
+        return { rows: result.data as unknown as CoverageRow[] };
+      }
+      return { error: "The Backend returned an unexpected checkpoint coverage response." };
+    } catch {
+      return { error: "Could not refresh checkpoint coverage. Check your connection and try again." };
+    }
+  }
+
   const active = assignments.filter(a => a.revoked_at === null);
   const revoked = assignments.filter(a => a.revoked_at !== null);
   const assignedUsers = new Set(active.map(a => a.staff_user_id));
@@ -121,6 +260,7 @@ export default async function EventOperationsPage({
   const canOpen = !errorMessage && event?.state === "DRAFT"
     && Boolean(event.roster_frozen_at) && (rosterCount ?? 0) > 0 && validWindows;
   const root = "/organizations/" + orgId + "/events/" + eventId + "/operations";
+  const pageStart = coverageOffset + 1;
 
   return (
     <AppShell userEmail={auth.email} activePath="/events">
@@ -174,6 +314,75 @@ export default async function EventOperationsPage({
                 ) : (
                   <p>Activation is only available for DRAFT events; repeated OPEN requests are not permitted.</p>
                 )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="space-y-1">
+                    <CardTitle>Provisional checkpoint coverage</CardTitle>
+                    <p className="text-sm text-slate-600 dark:text-slate-300">
+                      Read-only accepted online scan evidence against the frozen roster.
+                    </p>
+                  </div>
+                  <Badge variant="warning">Provisional</Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-5 text-sm">
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
+                    <p className="text-slate-600 dark:text-slate-400">Frozen roster entries</p>
+                    <p className="mt-1 text-xl font-semibold tabular-nums">
+                      {rosterCount === null ? "Not frozen" : rosterCount.toLocaleString("en-PH")}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
+                    <p className="text-slate-600 dark:text-slate-400">Configured checkpoints</p>
+                    <p className="mt-1 text-xl font-semibold tabular-nums">{checkpoints.length.toLocaleString("en-PH")}</p>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
+                    <p className="text-slate-600 dark:text-slate-400">Evidence combinations</p>
+                    <p className="mt-1 text-xl font-semibold tabular-nums">
+                      {totalEvidenceSlots === null ? "Unavailable" : totalEvidenceSlots.toLocaleString("en-PH")}
+                    </p>
+                  </div>
+                </div>
+
+                {!event.roster_frozen_at ? (
+                  <p role="status" className="text-amber-700 dark:text-amber-300">
+                    Checkpoint coverage becomes available after the event roster is frozen.
+                  </p>
+                ) : checkpoints.length === 0 ? (
+                  <p role="status" className="text-slate-600 dark:text-slate-300">
+                    No checkpoints are configured for this event.
+                  </p>
+                ) : rosterCount === 0 ? (
+                  <p role="status" className="text-slate-600 dark:text-slate-300">
+                    No frozen roster entries are available for checkpoint coverage.
+                  </p>
+                ) : coveragePrerequisitesMet ? (
+                  <CoverageEvidencePanel
+                    key={eventId + ":" + coveragePage}
+                    initialRows={coverageRows}
+                    initialError={coverageErrorMessage}
+                    refreshAction={refreshCoveragePage}
+                    page={coveragePage}
+                    pageCount={pageCount}
+                    pageStart={pageStart}
+                    totalEvidenceSlots={totalEvidenceSlots ?? 0}
+                    previousHref={coveragePage > 1
+                      ? coverageHref(root, query, coveragePage - 1)
+                      : undefined}
+                    nextHref={coveragePage < pageCount
+                      ? coverageHref(root, query, coveragePage + 1)
+                      : undefined}
+                  />
+                ) : null}
+
+                <p className="text-xs text-slate-600 dark:text-slate-400" role="note">
+                  Coverage is provisional and may change as new accepted receipts arrive. Each page is read separately; pages do not form one atomic snapshot. No accepted receipt recorded is not an official attendance status.
+                </p>
               </CardContent>
             </Card>
 
