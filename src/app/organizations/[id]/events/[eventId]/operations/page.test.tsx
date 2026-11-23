@@ -1,18 +1,16 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Providers } from "@/components/providers";
 import { getAuthState } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import EventOperationsPage from "./page";
 
-const { refresh } = vi.hoisted(() => ({ refresh: vi.fn() }));
-
 vi.mock("@/lib/auth", () => ({ getAuthState: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("next/navigation", () => ({
   redirect: vi.fn((url: string) => { throw new Error("Redirect to " + url); }),
   notFound: vi.fn(() => { throw new Error("Not found"); }),
-  useRouter: () => ({ refresh, replace: vi.fn() }),
+  useRouter: () => ({ refresh: vi.fn(), replace: vi.fn() }),
 }));
 vi.mock("./actions", () => ({
   assignEventStaff: vi.fn(),
@@ -391,9 +389,29 @@ describe("provisional checkpoint coverage", () => {
     expect(screen.queryByText("private network detail")).not.toBeInTheDocument();
   });
 
-  it("manually refreshes the currently displayed coverage page", async () => {
+  it("refreshes only the currently displayed coverage page", async () => {
+    checkpointOrder.mockResolvedValueOnce({
+      data: [1, 2, 3, 4].map((number) => ({
+        ...checkpoint,
+        id: "cccccccc-cccc-4ccc-8ccc-" + String(number).padStart(12, "0"),
+        label: "Checkpoint " + number,
+        sort_order: number,
+      })),
+      error: null,
+    });
+    rosterEq.mockResolvedValueOnce({ count: 600, error: null });
     await show(ORG, EVENT, { coverage_page: "2" });
+    expect(coverageCalls()).toHaveLength(1);
+
     fireEvent.click(screen.getByRole("button", { name: "Refresh checkpoint coverage" }));
-    expect(refresh).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(coverageCalls()).toHaveLength(2));
+
+    expect(coverageCalls().map(([, args]) => args)).toEqual([
+      { eid: EVENT, p_limit: 200, p_offset: 200 },
+      { eid: EVENT, p_limit: 200, p_offset: 200 },
+    ]);
+    expect(eventOne).toHaveBeenCalledTimes(1);
+    expect(assignmentOrder).toHaveBeenCalledTimes(1);
+    expect(rpc.mock.calls.filter(([name]) => name === "can_manage_org")).toHaveLength(2);
   });
 });
