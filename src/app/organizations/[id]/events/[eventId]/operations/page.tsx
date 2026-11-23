@@ -211,6 +211,7 @@ export default async function EventOperationsPage({
     }
   }
 
+  // Re-authorize and refresh only this page's evidence, not the full Operations route.
   async function refreshCoveragePage(): Promise<{ rows: CoverageRow[] } | { error: string }> {
     "use server";
 
