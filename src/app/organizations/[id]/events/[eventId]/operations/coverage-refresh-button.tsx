@@ -18,6 +18,9 @@ export function CoverageRefreshButton() {
       aria-label="Refresh checkpoint coverage"
     >
       {isPending ? "Refreshing…" : "Refresh coverage"}
+      <span aria-live="polite" className="sr-only">
+        {isPending ? "Refreshing checkpoint coverage" : ""}
+      </span>
     </Button>
   );
 }
