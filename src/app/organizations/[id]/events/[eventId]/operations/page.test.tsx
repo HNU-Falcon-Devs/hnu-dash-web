@@ -509,7 +509,7 @@ describe("M3.2B organizer lifecycle and finalized results", () => {
     for (const status of ["PRESENT", "INCOMPLETE", "ABSENT"]) expect(within(table).getByText(status)).toBeInTheDocument();
     expect(screen.getByText("Finalized at (Asia/Manila)")).toBeInTheDocument();
     expect(screen.getByText("Finalized by (Auth UUID)")).toBeInTheDocument();
-    expect(document.querySelector('time[datetime="' + finalTime + '"]')).toBeInTheDocument();
+    expect(document.querySelector('time[datetime="' + finalTime + '"]')).toHaveTextContent(/12:00/);
     expect(screen.getByRole("link", { name: "Next results page" })).toHaveAttribute("href",
       "/organizations/" + ORG + "/events/" + EVENT + "/operations?coverage_page=1&other=keep&results_page=3");
     expect(screen.queryByRole("form", { name: "Finalize attendance" })).not.toBeInTheDocument();

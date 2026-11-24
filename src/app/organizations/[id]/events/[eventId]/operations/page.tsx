@@ -463,7 +463,7 @@ export default async function EventOperationsPage({
                   <p>Review the provisional coverage above before finalizing. All configured checkpoints are required for this synthetic-only prototype.</p>
                   {coveragePrerequisitesMet && !coverageErrorMessage && coverageRows.length > 0
                     ? <EventLifecycleForm key={event.id + ":finalize"} organizationId={orgId} eventId={eventId} kind="finalize" />
-                    : <p role="status">Reload event operations to obtain evidence for review before finalizing. <Link href={pageHref(root, query, coveragePage)} className="underline">Reload evidence</Link></p>}
+                    : <p role="status">Reload event operations to obtain evidence for review before finalizing. <a href={pageHref(root, query, coveragePage)} className="underline">Reload evidence</a></p>}
                 </CardContent>
               </Card>
             )}

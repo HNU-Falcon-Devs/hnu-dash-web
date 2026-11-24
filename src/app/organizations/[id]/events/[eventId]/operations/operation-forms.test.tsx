@@ -82,3 +82,17 @@ describe("explicit lifecycle confirmation", () => {
     expect(closeEvent).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("lifecycle transport recovery", () => {
+  it("does not resubmit after an unconfirmed Server Action transport failure", async () => {
+    vi.mocked(finalizeEvent).mockReset().mockRejectedValue(new Error("private transport detail"));
+    render(<EventLifecycleForm organizationId={ORG} eventId={EVENT} kind="finalize" />);
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.submit(screen.getByRole("form", { name: "Finalize attendance" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Reload to verify event state"));
+    expect(screen.queryByText("private transport detail")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reload event state" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Finalize attendance" })).not.toBeInTheDocument();
+    expect(finalizeEvent).toHaveBeenCalledTimes(1);
+  });
+});

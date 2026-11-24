@@ -98,7 +98,19 @@ export function EventLifecycleForm({
   organizationId, eventId, kind,
 }: { organizationId: string; eventId: string; kind: "close" | "finalize" }) {
   const closing = kind === "close";
-  const [state, action, pending] = useActionState(closing ? closeEvent : finalizeEvent, initial);
+  const [state, action, pending] = useActionState(async (previous: OperationState, form: FormData): Promise<OperationState> => {
+    try {
+      return await (closing ? closeEvent : finalizeEvent)(previous, form);
+    } catch {
+      // A transport failure between the browser and Server Action cannot
+      // prove whether the Backend committed. Require a fresh read.
+      return {
+        status: "error",
+        message: "The submission could not be confirmed. Reload to verify event state before trying again.",
+        reloadRequired: true,
+      };
+    }
+  }, initial);
   const needsReload = state.reloadRequired || state.status === "success";
   const label = closing ? "Close event" : "Finalize attendance";
   return (
