@@ -564,3 +564,147 @@ describe("M3.2B organizer lifecycle and finalized results", () => {
     expect(coverageCalls()).toHaveLength(1);
   });
 });
+
+
+describe("M4.4 offline Operations workspace", () => {
+  const cutoff = "2026-12-06T03:00:00Z";
+  const seal = "2026-12-06T03:01:00Z";
+  const confirm = "2026-12-06T04:00:00Z";
+  const PREP = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const CAPTURE = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  const RECEIPT = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+  const preparation = { preparation_id: PREP, assignment_id: active.id, staff_user_id: STAFF,
+    issued_at: "2026-12-05T01:00:00Z", expires_at: "2026-12-05T03:00:00Z", revoked_at: null,
+    uploaded_count: 1, disposition: null, declared_count: null, reason: null, accounted_at: null, accounted_by: null };
+  const claim = { capture_id: CAPTURE, preparation_id: PREP, checkpoint_id: CHECKPOINT,
+    student_id: "00001234", staff_user_id: STAFF, claimed_at: "2026-12-05T01:01:00Z",
+    received_at: "2026-12-05T02:00:00Z", review_eligible: false, decision: null, reason: null,
+    receipt_id: null, receipt_outcome: null, reviewed_at: null, reviewed_by: null };
+  function setup(state: string, overrides: Record<string, unknown> = {},
+    sessions: unknown = [preparation], claims: unknown = [claim]) {
+    eventOne.mockResolvedValue({ data: { ...entry, state, opened_at: state === "DRAFT" ? null : "2026-12-04T08:00:00Z",
+      offline_enabled: true, offline_upload_cutoff: state === "DRAFT" ? null : cutoff }, error: null });
+    rpc.mockImplementation(async (name: string) => {
+      if (name === "can_manage_org") return { data: true, error: null };
+      if (name === "get_event_checkpoint_coverage") return { data: [acceptedRow], error: null };
+      if (name === "get_event_offline_summary") return { data: {
+        event_id: EVENT, event_state: state, upload_cutoff: state === "DRAFT" ? null : cutoff,
+        sealed_at: null, sealed_by: null, confirmed_at: null, confirmed_by: null,
+        preparation_count: 1, completed_count: 0, loss_count: 0, unaccounted_count: 1,
+        claim_count: 1, reviewed_count: 0, unreviewed_count: 1,
+        can_seal: false, can_confirm: false, can_finalize: false, ...overrides,
+      }, error: null };
+      if (name === "get_event_offline_preparations") return { data: sessions, error: null };
+      if (name === "get_event_offline_claims") return { data: claims, error: null };
+      if (name === "get_event_finalized_results") return { data: [], error: null };
+      return { data: null, error: null };
+    });
+  }
+  const zero = { preparation_count: 0, unaccounted_count: 0, claim_count: 0, unreviewed_count: 0 };
+  const sealed = { sealed_at: seal, sealed_by: STAFF };
+  const confirmed = { confirmed_at: confirm, confirmed_by: STAFF };
+  it("defaults to online-only and offers deliberate DRAFT opt-in without reading M4.2", async () => {
+    await show();
+    const form = screen.getByRole("form", { name: "Enable offline attendance" });
+    expect(within(form).getByRole("checkbox")).not.toBeChecked();
+    expect(within(form).getByText(/irreversible.*24 hours/)).toBeInTheDocument();
+    expect(within(form).getByRole("button", { name: "Enable offline attendance" })).toBeDisabled();
+    expect(rpc.mock.calls.some(([name]) => name.startsWith("get_event_offline_"))).toBe(false);
+  });
+  it("fails closed rather than exposing online finalization when event policy is missing", async () => {
+    eventOne.mockResolvedValue({ data: { ...entry, state: "SYNCING", offline_enabled: undefined }, error: null });
+    await show();
+    expect(screen.getByRole("alert")).toHaveTextContent("verify the event offline policy");
+    expect(screen.queryByRole("form", { name: "Finalize attendance" })).not.toBeInTheDocument();
+    expect(rpc.mock.calls.some(([name]) => name.startsWith("get_event_offline_"))).toBe(false);
+  });
+  it("does not offer opt-in undo or automatic activation for enabled DRAFT", async () => {
+    setup("DRAFT", zero, [], []);
+    await show();
+    expect(screen.queryByRole("form", { name: "Enable offline attendance" })).not.toBeInTheDocument();
+    expect(screen.getByRole("form", { name: "Activate event" })).toHaveTextContent("Offline-enabled");
+    expect(screen.getByText(/Known preparations: 0/)).toBeInTheDocument();
+  });
+  it("shows claims as untrusted and preparations as known sessions, withholding early seal and review", async () => {
+    setup("SYNCING");
+    await show();
+    expect(screen.getByText(/Known preparations are not devices/)).toBeInTheDocument();
+    expect(screen.getByText(/Claimed time \(untrusted\)/)).toBeInTheDocument();
+    expect(screen.getByText(/Ineligible for approval/)).toBeInTheDocument();
+    expect(screen.queryByRole("form", { name: "Seal offline uploads" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("form", { name: "Review offline claim " + CAPTURE })).not.toBeInTheDocument();
+    expect(screen.queryByRole("form", { name: "Finalize attendance" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("form", { name: "Finalize offline attendance" })).not.toBeInTheDocument();
+  });
+  it("allows only manual loss/rejection after sealing and does not enable ineligible approval", async () => {
+    setup("SYNCING", sealed);
+    await show();
+    expect(screen.getByRole("form", { name: "Record session loss " + PREP })).toBeInTheDocument();
+    const form = screen.getByRole("form", { name: "Review offline claim " + CAPTURE });
+    expect(within(form).getByRole("option", { name: "Approve" })).toBeDisabled();
+    expect(within(form).getByRole("option", { name: "Reject" })).not.toBeDisabled();
+    expect(within(form).getByRole("combobox")).toHaveValue("");
+    expect(screen.queryByRole("form", { name: "Confirm offline reconciliation" })).not.toBeInTheDocument();
+  });
+  it("uses separate bounded preparation and claim pages while preserving other query values", async () => {
+    setup("SYNCING", { preparation_count: 401, unaccounted_count: 401, claim_count: 201, unreviewed_count: 201 });
+    await show(ORG, EVENT, { preparations_page: "99", claims_page: "2", coverage_page: "1", other: "keep" });
+    expect(rpc).toHaveBeenCalledWith("get_event_offline_preparations", { eid: EVENT, p_limit: 200, p_offset: 400 });
+    expect(rpc).toHaveBeenCalledWith("get_event_offline_claims", { eid: EVENT, p_limit: 200, p_offset: 200 });
+    expect(screen.getByRole("link", { name: "Previous preparations page" })).toHaveAttribute("href",
+      "/organizations/" + ORG + "/events/" + EVENT + "/operations?claims_page=2&coverage_page=1&other=keep&preparations_page=2");
+    expect(screen.getByRole("link", { name: "Previous claims page" })).toHaveAttribute("href",
+      "/organizations/" + ORG + "/events/" + EVENT + "/operations?preparations_page=99&coverage_page=1&other=keep&claims_page=1");
+  });
+  it("requires seal before confirmation, even for zero known preparations and claims", async () => {
+    setup("SYNCING", { ...zero, can_seal: true }, [], []);
+    await show();
+    expect(screen.getByRole("form", { name: "Seal offline uploads" })).toBeInTheDocument();
+    expect(screen.queryByRole("form", { name: "Confirm offline reconciliation" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("form", { name: "Finalize offline attendance" })).not.toBeInTheDocument();
+  });
+  it("allows explicit confirmation but not finalization until Backend can_finalize", async () => {
+    setup("SYNCING", { ...zero, ...sealed, can_confirm: true }, [], []);
+    await show();
+    expect(screen.getByRole("form", { name: "Confirm offline reconciliation" })).toBeInTheDocument();
+    expect(screen.queryByRole("form", { name: "Finalize offline attendance" })).not.toBeInTheDocument();
+  });
+  it("offers only separate offline finalization confirmation after Backend confirmation", async () => {
+    setup("SYNCING", { ...zero, ...sealed, ...confirmed, can_finalize: true }, [], []);
+    await show();
+    const form = screen.getByRole("form", { name: "Finalize offline attendance" });
+    expect(within(form).getByRole("checkbox")).not.toBeChecked();
+    expect(screen.queryByRole("form", { name: "Finalize attendance" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("form", { name: "Confirm offline reconciliation" })).not.toBeInTheDocument();
+  });
+  it("blocks finalization if a page is malformed despite summary readiness", async () => {
+    setup("SYNCING", { ...zero, ...sealed, ...confirmed, can_finalize: true }, [], [claim]);
+    await show();
+    expect(screen.getByRole("alert")).toHaveTextContent("Authoritative offline evidence is unavailable");
+    expect(screen.queryByRole("form", { name: "Finalize attendance" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("form", { name: "Finalize offline attendance" })).not.toBeInTheDocument();
+  });
+  it("renders finalized immutable loss and receipt history with original provenance, not controls", async () => {
+    setup("FINALIZED", { ...sealed, ...confirmed, loss_count: 1, unaccounted_count: 0, reviewed_count: 1, unreviewed_count: 0 },
+      [{ ...preparation, disposition: "lost", reason: "Device lost", accounted_at: seal, accounted_by: CANDIDATE }],
+      [{ ...claim, review_eligible: true, decision: "approve", reason: "Reviewed", receipt_id: RECEIPT,
+        receipt_outcome: "duplicate", reviewed_at: seal, reviewed_by: CANDIDATE }]);
+    await show();
+    expect(screen.getByText("Finalized reconciliation history is read-only.")).toBeInTheDocument();
+    expect(screen.getByText("Loss reason: Device lost")).toBeInTheDocument();
+    expect(screen.getByText(/Actual uploaded claims: 1.*Not declared/)).toBeInTheDocument();
+    expect(screen.getByText(/Canonical receipt: .*Outcome: duplicate/)).toBeInTheDocument();
+    expect(screen.queryByRole("form", { name: "Review offline claim " + CAPTURE })).not.toBeInTheDocument();
+    expect(screen.queryByRole("form", { name: "Record session loss " + PREP })).not.toBeInTheDocument();
+    expect(screen.queryByRole("form", { name: "Finalize offline attendance" })).not.toBeInTheDocument();
+  });
+  it("never reads offline claims for nonmanager or foreign event", async () => {
+    setup("SYNCING");
+    rpc.mockResolvedValueOnce({ data: false, error: null });
+    await show();
+    expect(rpc.mock.calls.some(([name]) => name.startsWith("get_event_offline_"))).toBe(false);
+    eventOne.mockResolvedValueOnce({ data: { ...entry, organization_id: STAFF }, error: null });
+    await expect(EventOperationsPage({ params: Promise.resolve({ id: ORG, eventId: EVENT }) })).rejects.toThrow("Not found");
+    expect(rpc.mock.calls.some(([name]) => name.startsWith("get_event_offline_"))).toBe(false);
+  });
+});
