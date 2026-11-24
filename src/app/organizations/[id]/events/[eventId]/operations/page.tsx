@@ -6,8 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getAuthState } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { formatManila, isUuid } from "../../validation";
-import { AssignEventStaffForm, RevokeEventStaffForm, OpenEventForm } from "./operation-forms";
+import { AssignEventStaffForm, RevokeEventStaffForm, OpenEventForm, EventLifecycleForm } from "./operation-forms";
 import { CoverageEvidencePanel } from "./coverage-refresh-button";
+import { FinalizedResults, parseFinalizedResults, type FinalizedResult } from "./finalized-results";
 
 export const dynamic = "force-dynamic";
 
@@ -52,28 +53,29 @@ type CoverageRow = {
 };
 type OperationsSearchParams = Record<string, string | string[] | undefined>;
 
-function parseCoveragePage(value: string | string[] | undefined): number {
+function parsePage(value: string | string[] | undefined): number {
   const raw = Array.isArray(value) ? value[0] : value;
   if (!raw || !/^[1-9]\d*$/.test(raw)) return 1;
   const page = Number(raw);
   return Number.isSafeInteger(page) ? page : 1;
 }
 
-function coverageHref(
+function pageHref(
   root: string,
   searchParams: OperationsSearchParams,
   page: number,
+  pageKey = "coverage_page",
 ): string {
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(searchParams)) {
-    if (key === "coverage_page" || value === undefined) continue;
+    if (key === pageKey || value === undefined) continue;
     if (Array.isArray(value)) {
       value.forEach(item => query.append(key, item));
     } else {
       query.set(key, value);
     }
   }
-  query.set("coverage_page", String(page));
+  query.set(pageKey, String(page));
   return root + "?" + query.toString();
 }
 
@@ -137,7 +139,7 @@ export default async function EventOperationsPage({
         .eq("organization_id", orgId).eq("id", eventId).maybeSingle();
       if (found.error) {
         errorMessage = "Could not load event operations. The Milestone 2 Backend may not be available yet.";
-      } else if (!found.data) {
+      } else if (!found.data || found.data.id !== eventId || found.data.organization_id !== orgId) {
         eventMissing = true;
       } else {
         event = found.data as Event;
@@ -179,7 +181,7 @@ export default async function EventOperationsPage({
   const pageCount = totalEvidenceSlots === null
     ? 0
     : Math.ceil(totalEvidenceSlots / COVERAGE_PAGE_SIZE);
-  const requestedCoveragePage = parseCoveragePage(query.coverage_page);
+  const requestedCoveragePage = parsePage(query.coverage_page);
   const coveragePage = pageCount > 0
     ? Math.min(requestedCoveragePage, pageCount)
     : 1;
@@ -227,6 +229,12 @@ export default async function EventOperationsPage({
         return { error: "Checkpoint coverage is unavailable for this account or event." };
       }
 
+      const scoped = await refreshClient.from("events").select("id,organization_id")
+        .eq("organization_id", orgId).eq("id", eventId).maybeSingle();
+      if (scoped.error || !scoped.data || scoped.data.id !== eventId || scoped.data.organization_id !== orgId) {
+        return { error: "Checkpoint coverage is unavailable for this account or event." };
+      }
+
       const result = await refreshClient.rpc("get_event_checkpoint_coverage", {
         eid: eventId,
         p_limit: COVERAGE_PAGE_SIZE,
@@ -241,6 +249,42 @@ export default async function EventOperationsPage({
       return { error: "The Backend returned an unexpected checkpoint coverage response." };
     } catch {
       return { error: "Could not refresh checkpoint coverage. Check your connection and try again." };
+    }
+  }
+
+  // The immutable result RPC is separate from provisional coverage.
+  // Bound the offset using the already-authorized frozen-roster count.
+  const resultPageCount = rosterCount !== null && Number.isSafeInteger(rosterCount)
+    && rosterCount > 0 && rosterCount <= 2147483647
+    ? Math.ceil(rosterCount / COVERAGE_PAGE_SIZE) : 0;
+  const resultPage = Math.min(parsePage(query.results_page), Math.max(1, resultPageCount));
+  let finalizedRows: FinalizedResult[] = [];
+  let finalizedError = "";
+  if (managerAuthorized && !errorMessage && event?.state === "FINALIZED" && client) {
+    if (!event.roster_frozen_at || resultPageCount === 0) {
+      finalizedError = "Could not verify the frozen roster for finalized results. Reload to check Backend records.";
+    } else {
+      try {
+        const result = await client.rpc("get_event_finalized_results", {
+          eid: eventId, p_limit: COVERAGE_PAGE_SIZE,
+          p_offset: (resultPage - 1) * COVERAGE_PAGE_SIZE,
+        });
+        if (result.error) {
+          finalizedError = result.error.code === "42501"
+            ? "Finalized results are unavailable for this account or event."
+            : result.error.code === "55000"
+              ? "The Backend did not confirm a finalized event. Reload to verify event state."
+              : result.error.code === "22023"
+                ? "The finalized results request was invalid. Reload to try again."
+                : "Could not load finalized results. Reload to check Backend availability.";
+        } else {
+          const rows = parseFinalizedResults(result.data, eventId, COVERAGE_PAGE_SIZE);
+          if (rows === null) finalizedError = "The Backend returned an unexpected finalized results response.";
+          else finalizedRows = rows;
+        }
+      } catch {
+        finalizedError = "Could not load finalized results. Reload to check Backend availability.";
+      }
     }
   }
 
@@ -259,6 +303,14 @@ export default async function EventOperationsPage({
     });
   const canOpen = !errorMessage && event?.state === "DRAFT"
     && Boolean(event.roster_frozen_at) && (rosterCount ?? 0) > 0 && validWindows;
+  const closureReady = Boolean(event?.roster_frozen_at && event.opened_at
+    && (rosterCount ?? 0) > 0 && checkpoints.length > 0
+    && checkpoints.every(c => Number.isFinite(Date.parse(c.closes_at))));
+  const lastWindowEnd = closureReady
+    ? checkpoints.reduce((latest, point) =>
+      Date.parse(point.closes_at) > Date.parse(latest) ? point.closes_at : latest,
+      checkpoints[0].closes_at)
+    : null;
   const root = "/organizations/" + orgId + "/events/" + eventId + "/operations";
   const pageStart = coverageOffset + 1;
 
@@ -317,6 +369,24 @@ export default async function EventOperationsPage({
               </CardContent>
             </Card>
 
+            {event.state === "OPEN" && (
+              <Card>
+                <CardHeader><CardTitle>Close online evidence</CardTitle></CardHeader>
+                <CardContent className="space-y-3 text-sm">
+                  <p>All checkpoint windows must end before closure. The Backend verifies server time, readiness and permissions.</p>
+                  {lastWindowEnd && <p>Last checkpoint closes: <time dateTime={lastWindowEnd}>{formatManila(lastWindowEnd)}</time> (Asia/Manila).</p>}
+                  {closureReady
+                    ? <EventLifecycleForm key={event.id + ":close"} organizationId={orgId} eventId={eventId} kind="close" />
+                    : <p role="status">Closure requires an opened event, a nonempty frozen roster and configured checkpoints.</p>}
+                </CardContent>
+              </Card>
+            )}
+            {event.state === "SYNCING" && (
+              <p role="status" className="text-sm">
+                SYNCING — closed to new online evidence; awaiting organizer review. This is not offline synchronization completion.
+              </p>
+            )}
+
             <Card>
               <CardHeader>
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -363,7 +433,7 @@ export default async function EventOperationsPage({
                   </p>
                 ) : coveragePrerequisitesMet ? (
                   <CoverageEvidencePanel
-                    key={eventId + ":" + coveragePage}
+                    key={eventId + ":" + event.state + ":" + coveragePage}
                     initialRows={coverageRows}
                     initialError={coverageErrorMessage}
                     refreshAction={refreshCoveragePage}
@@ -372,10 +442,10 @@ export default async function EventOperationsPage({
                     pageStart={pageStart}
                     totalEvidenceSlots={totalEvidenceSlots ?? 0}
                     previousHref={coveragePage > 1
-                      ? coverageHref(root, query, coveragePage - 1)
+                      ? pageHref(root, query, coveragePage - 1)
                       : undefined}
                     nextHref={coveragePage < pageCount
-                      ? coverageHref(root, query, coveragePage + 1)
+                      ? pageHref(root, query, coveragePage + 1)
                       : undefined}
                   />
                 ) : null}
@@ -385,6 +455,26 @@ export default async function EventOperationsPage({
                 </p>
               </CardContent>
             </Card>
+
+            {event.state === "SYNCING" && (
+              <Card>
+                <CardHeader><CardTitle>Finalize prototype attendance</CardTitle></CardHeader>
+                <CardContent className="space-y-3 text-sm">
+                  <p>Review the provisional coverage above before finalizing. All configured checkpoints are required for this synthetic-only prototype.</p>
+                  {coveragePrerequisitesMet && !coverageErrorMessage && coverageRows.length > 0
+                    ? <EventLifecycleForm key={event.id + ":finalize"} organizationId={orgId} eventId={eventId} kind="finalize" />
+                    : <p role="status">Reload event operations to obtain evidence for review before finalizing. <Link href={pageHref(root, query, coveragePage)} className="underline">Reload evidence</Link></p>}
+                </CardContent>
+              </Card>
+            )}
+
+            {event.state === "FINALIZED" && (
+              <FinalizedResults rows={finalizedRows} error={finalizedError}
+                page={resultPage} pageCount={resultPageCount} rosterCount={rosterCount}
+                previousHref={resultPage > 1 ? pageHref(root, query, resultPage - 1, "results_page") : undefined}
+                nextHref={resultPage < resultPageCount ? pageHref(root, query, resultPage + 1, "results_page") : undefined}
+                reloadHref={pageHref(root, query, resultPage, "results_page")} />
+            )}
 
             <Card>
               <CardHeader><CardTitle>Attendance Staff</CardTitle></CardHeader>

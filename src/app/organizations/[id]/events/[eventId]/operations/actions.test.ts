@@ -3,7 +3,7 @@ import { getAuthState } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import {
-  activateEvent, assignEventStaff, revokeEventStaff, type OperationState,
+  activateEvent, assignEventStaff, revokeEventStaff, closeEvent, finalizeEvent, type OperationState,
 } from "./actions";
 
 vi.mock("@/lib/auth", () => ({ getAuthState: vi.fn() }));
@@ -16,7 +16,7 @@ const STAFF = "33333333-3333-4333-8333-333333333333";
 const ASSIGNMENT = "44444444-4444-4444-8444-444444444444";
 const initial: OperationState = { status: "idle", message: "" };
 const parent = {
-  id: EVENT, state: "DRAFT", roster_frozen_at: "2026-12-01T00:00:00Z",
+  id: EVENT, organization_id: ORG, state: "DRAFT", roster_frozen_at: "2026-12-01T00:00:00Z",
   starts_at: "2026-12-05T00:00:00Z", ends_at: "2026-12-06T00:00:00Z",
 };
 
@@ -45,7 +45,7 @@ const from = vi.fn((name: string) => ({
     name === "event_roster" ? { eq: rosterEq } : { eq: checkpointEq }),
 }));
 
-function form(kind: "assign" | "revoke" | "open", overrides: {
+function form(kind: "assign" | "revoke" | "open" | "close" | "finalize", overrides: {
   orgId?: string; eventId?: string; staffId?: string;
   assignmentId?: string; confirmed?: boolean;
 } = {}) {
@@ -57,7 +57,7 @@ function form(kind: "assign" | "revoke" | "open", overrides: {
     data.set("assignment_id", overrides.assignmentId ?? ASSIGNMENT);
     if (overrides.confirmed !== false) data.set("confirm_revoke", "yes");
   }
-  if (kind === "open" && overrides.confirmed !== false) data.set("confirm_open", "yes");
+  if (["open", "close", "finalize"].includes(kind) && overrides.confirmed !== false) data.set("confirm_" + kind, "yes");
   return data;
 }
 
@@ -258,4 +258,109 @@ describe("controlled event activation action", () => {
     expect((await activateEvent(initial, form("open"))).status).toBe("error");
     expect(revalidatePath).not.toHaveBeenCalled();
   });
+});
+
+
+describe("M3.2B lifecycle actions", () => {
+  const closed = { event_id: EVENT, event_state: "SYNCING", closed_at: "2026-12-05T03:00:00Z", closed_by: STAFF };
+  const finalized = { event_id: EVENT, event_state: "FINALIZED", finalized_at: "2026-12-05T04:00:00Z", finalized_by: STAFF, record_count: 2, replayed: false };
+  const path = "/organizations/" + ORG + "/events/" + EVENT + "/operations";
+  const setEvent = (state: string) => eventOne.mockResolvedValue({ data: { ...parent, state }, error: null });
+  const result = (data: unknown, error: unknown = null) => {
+    rpc.mockResolvedValueOnce({ data: true, error: null }).mockResolvedValueOnce({ data, error });
+  };
+
+  it.each(["organization Leader", "platform Admin"])("closes an authorized OPEN event for %s using only the event UUID", async () => {
+    setEvent("OPEN");
+    result(closed);
+    expect((await closeEvent(initial, form("close"))).status).toBe("success");
+    expect(eventQuery.eq).toHaveBeenCalledWith("organization_id", ORG);
+    expect(eventQuery.eq).toHaveBeenCalledWith("id", EVENT);
+    expect(rpc.mock.calls).toEqual([["can_manage_org", { org_id: ORG }], ["close_event", { eid: EVENT }]]);
+    expect(revalidatePath).toHaveBeenCalledWith(path);
+  });
+
+  it.each(["SYNCING", "FINALIZED"])("finalizes or explicitly recovers an original receipt from %s", async state => {
+    setEvent(state);
+    result({ ...finalized, replayed: state === "FINALIZED" });
+    const feedback = await finalizeEvent(initial, form("finalize"));
+    expect(feedback.status).toBe("success");
+    if (state === "FINALIZED") expect(feedback.message).toContain("original finalized results");
+    expect(rpc).toHaveBeenCalledWith("finalize_event", { eid: EVENT });
+    expect(revalidatePath).toHaveBeenCalledWith(path);
+    expect(from).not.toHaveBeenCalledWith("attendance_records");
+  });
+
+  it.each(["close", "finalize"] as const)("rejects invalid IDs and missing confirmation for %s before any auth or RPC", async kind => {
+    const action = kind === "close" ? closeEvent : finalizeEvent;
+    expect((await action(initial, form(kind, { eventId: "invalid" }))).status).toBe("error");
+    expect((await action(initial, form(kind, { confirmed: false }))).status).toBe("error");
+    expect(getAuthState).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it.each(["signed-out", "denied", "error"] as const)("blocks lifecycle mutations on %s identity", async status => {
+    vi.mocked(getAuthState).mockResolvedValue({ status });
+    expect((await closeEvent(initial, form("close"))).status).toBe("error");
+    expect((await finalizeEvent(initial, form("finalize"))).status).toBe("error");
+    expect(createClient).not.toHaveBeenCalled();
+  });
+
+  it("denies Staff, foreign scope, permission outages, missing and mismatched event association", async () => {
+    setEvent("OPEN");
+    rpc.mockResolvedValueOnce({ data: false, error: null });
+    expect((await closeEvent(initial, form("close"))).status).toBe("error");
+    rpc.mockResolvedValueOnce({ data: null, error: { code: "42501" } });
+    expect((await closeEvent(initial, form("close"))).status).toBe("error");
+    eventOne.mockResolvedValueOnce({ data: null, error: null });
+    expect((await closeEvent(initial, form("close"))).status).toBe("error");
+    eventOne.mockResolvedValueOnce({ data: { ...parent, state: "SYNCING", organization_id: STAFF }, error: null });
+    expect((await finalizeEvent(initial, form("finalize"))).status).toBe("error");
+    expect(rpc.mock.calls.every(([name]) => name === "can_manage_org")).toBe(true);
+  });
+
+  it("rejects repeated closure and premature or unsupported finalization before mutation", async () => {
+    for (const state of ["DRAFT", "SYNCING", "FINALIZED", "LOCKED"]) {
+      setEvent(state);
+      expect((await closeEvent(initial, form("close"))).reloadRequired).toBe(true);
+    }
+    for (const state of ["DRAFT", "OPEN", "LOCKED"]) {
+      setEvent(state);
+      expect((await finalizeEvent(initial, form("finalize"))).reloadRequired).toBe(true);
+    }
+    expect(rpc.mock.calls.every(([name]) => name === "can_manage_org")).toBe(true);
+  });
+
+  it.each(["42501", "22023", "55000", "PGRST202", "unknown"])("handles Backend %s including early closure without raw errors or blind retry", async code => {
+    setEvent("OPEN");
+    result(null, { code, message: "private database detail" });
+    const feedback = await closeEvent(initial, form("close"));
+    expect(feedback.status).toBe("error");
+    expect(feedback.reloadRequired).toBe(true);
+    expect(feedback.message).not.toContain("private database detail");
+    expect(rpc.mock.calls.filter(([name]) => name === "close_event")).toHaveLength(1);
+    expect(revalidatePath).toHaveBeenCalledWith(path);
+  });
+
+  it("requires authoritative reload on a transport exception after dispatch", async () => {
+    setEvent("SYNCING");
+    rpc.mockResolvedValueOnce({ data: true, error: null }).mockRejectedValueOnce(new Error("private transport detail"));
+    const feedback = await finalizeEvent(initial, form("finalize"));
+    expect(feedback.status).toBe("error");
+    expect(feedback.reloadRequired).toBe(true);
+    expect(feedback.message).not.toContain("private transport detail");
+    expect(rpc.mock.calls.filter(([name]) => name === "finalize_event")).toHaveLength(1);
+    expect(revalidatePath).toHaveBeenCalledWith(path);
+  });
+
+  it.each([null, { ...finalized, event_id: ORG }, { ...finalized, record_count: "2" }, { ...finalized, replayed: null }])(
+    "does not claim success for malformed finalization response %#", async data => {
+      setEvent("SYNCING");
+      result(data);
+      const feedback = await finalizeEvent(initial, form("finalize"));
+      expect(feedback.status).toBe("error");
+      expect(feedback.reloadRequired).toBe(true);
+      expect(revalidatePath).toHaveBeenCalledWith(path);
+    },
+  );
 });

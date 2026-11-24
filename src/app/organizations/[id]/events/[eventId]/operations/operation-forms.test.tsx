@@ -1,13 +1,16 @@
-import { render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { closeEvent, finalizeEvent, type OperationState } from "./actions";
 import { describe, expect, it, vi } from "vitest";
 import {
-  AssignEventStaffForm, RevokeEventStaffForm, OpenEventForm,
+  AssignEventStaffForm, RevokeEventStaffForm, OpenEventForm, EventLifecycleForm,
 } from "./operation-forms";
 
 vi.mock("./actions", () => ({
   assignEventStaff: vi.fn(),
   revokeEventStaff: vi.fn(),
   activateEvent: vi.fn(),
+  closeEvent: vi.fn(),
+  finalizeEvent: vi.fn(),
 }));
 
 const ORG = "11111111-1111-4111-8111-111111111111";
@@ -43,5 +46,39 @@ describe("event operations forms", () => {
     expect(checkbox).toBeRequired();
     expect(within(form).getByRole("button", { name: "Activate DRAFT event" })).toBeInTheDocument();
     expect(within(form).getByText(/does not start scanning/)).toBeInTheDocument();
+  });
+});
+
+
+describe("explicit lifecycle confirmation", () => {
+  it.each(["close", "finalize"] as const)("requires deliberate confirmation and supports cancel for %s", kind => {
+    const action = kind === "close" ? closeEvent : finalizeEvent;
+    vi.mocked(action).mockClear();
+    render(<EventLifecycleForm organizationId={ORG} eventId={EVENT} kind={kind} />);
+    const checkbox = screen.getByRole("checkbox");
+    expect(checkbox).toBeRequired();
+    expect(checkbox).not.toBeChecked();
+    fireEvent.click(checkbox);
+    expect(checkbox).toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel confirmation" }));
+    expect(checkbox).not.toBeChecked();
+    expect(action).not.toHaveBeenCalled();
+  });
+
+  it("disables resubmission while pending and requires reload after an ambiguous outcome", async () => {
+    let resolve!: (state: OperationState) => void;
+    vi.mocked(closeEvent).mockReset().mockImplementation(() =>
+      new Promise<OperationState>(done => { resolve = done; }));
+    render(<EventLifecycleForm organizationId={ORG} eventId={EVENT} kind="close" />);
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.submit(screen.getByRole("form", { name: "Close event" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Submitting…" })).toBeDisabled());
+    expect(screen.getByRole("button", { name: "Cancel confirmation" })).toBeDisabled();
+    expect(closeEvent).toHaveBeenCalledTimes(1);
+    await act(async () => resolve({ status: "error", message: "Reload to verify event state.", reloadRequired: true }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Reload to verify");
+    expect(screen.getByRole("button", { name: "Reload event state" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Close event" })).not.toBeInTheDocument();
+    expect(closeEvent).toHaveBeenCalledTimes(1);
   });
 });

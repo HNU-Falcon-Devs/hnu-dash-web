@@ -9,10 +9,12 @@ export type OperationState = {
   status: "idle" | "success" | "error";
   message: string;
   openedAt?: string;
+  reloadRequired?: boolean;
 };
 
 type ManagedEvent = {
   id: string;
+  organization_id: string;
   state: string;
   roster_frozen_at: string | null;
   starts_at: string;
@@ -60,10 +62,10 @@ async function authorizedEvent(orgId: string, eventId: string): Promise<ManagedC
       : "You are not authorized to manage this organization's events." };
   }
   const result = await client.from("events")
-    .select("id,state,roster_frozen_at,starts_at,ends_at")
+    .select("id,organization_id,state,roster_frozen_at,starts_at,ends_at")
     .eq("organization_id", orgId).eq("id", eventId).maybeSingle();
   if (result.error) return { message: "Could not verify the event and its organization. Try again." };
-  if (!result.data || result.data.id !== eventId) {
+  if (!result.data || result.data.id !== eventId || result.data.organization_id !== orgId) {
     return { message: "Event not found in this organization or no longer accessible." };
   }
   return { client, event: result.data as ManagedEvent };
@@ -215,4 +217,95 @@ export async function activateEvent(
   } catch {
     return failed("Could not confirm activation. Reload to verify the event state before retrying.");
   }
+}
+
+
+type LifecycleOperation = "close" | "finalize";
+
+function lifecycleFailure(message: string): OperationState {
+  return { status: "error", message, reloadRequired: true };
+}
+
+function lifecycleError(code: string | undefined): string {
+  if (code === "42501" || code === "PGRST301") {
+    return "This operation is unavailable for your account or event. Reload to verify access.";
+  }
+  if (code === "22023") {
+    return "The Backend rejected event readiness. Check the frozen roster and checkpoints, then reload.";
+  }
+  if (code === "55000") {
+    return "The Backend rejected the transition. Check the current event state and whether all checkpoint windows have ended, then reload.";
+  }
+  if (["PGRST202", "42883"].includes(code ?? "")) {
+    return "The attendance finalization capability is unavailable on this Backend. Reload to check event state.";
+  }
+  return "The Backend did not confirm the transition. Reload to verify event state before trying again.";
+}
+
+async function transitionEvent(kind: LifecycleOperation, form: FormData): Promise<OperationState> {
+  const orgId = form.get("organization_id");
+  const eventId = form.get("event_id");
+  if (!isUuid(orgId) || !isUuid(eventId)) return failed("Invalid organization or event identifier.");
+  if (form.get("confirm_" + kind) !== "yes") {
+    return failed("Explicit confirmation is required before submitting this transition.");
+  }
+
+  let dispatched = false;
+  try {
+    const context = await authorizedEvent(orgId, eventId);
+    if (!context.client) return lifecycleFailure(context.message);
+    const allowed = kind === "close"
+      ? context.event.state === "OPEN"
+      : ["SYNCING", "FINALIZED"].includes(context.event.state);
+    if (!allowed) {
+      refresh(orgId, eventId);
+      return lifecycleFailure("This transition is not available in the current event state. Reload to verify.");
+    }
+
+    // Timing, roster readiness, authorization and persisted results remain
+    // Backend-owned. Finalization alone permits a confirmed replay.
+    dispatched = true;
+    const { data, error } = await context.client.rpc(
+      kind === "close" ? "close_event" : "finalize_event", { eid: eventId },
+    );
+    // Even a rejected or malformed response may follow a committed write.
+    // Refresh all affected routes and require an explicit reload before retry.
+    refresh(orgId, eventId);
+    if (error) return lifecycleFailure(lifecycleError(error.code));
+
+    const result = data && typeof data === "object" && !Array.isArray(data)
+      ? data as Record<string, unknown> : null;
+    const timestamp = result?.[kind === "close" ? "closed_at" : "finalized_at"];
+    const actor = result?.[kind === "close" ? "closed_by" : "finalized_by"];
+    if (!result || result.event_id !== eventId
+      || result.event_state !== (kind === "close" ? "SYNCING" : "FINALIZED")
+      || typeof timestamp !== "string" || !Number.isFinite(Date.parse(timestamp))
+      || !isUuid(actor)
+      || (kind === "finalize" && (
+        typeof result.record_count !== "number" || !Number.isSafeInteger(result.record_count)
+        || result.record_count < 1 || typeof result.replayed !== "boolean"
+      ))) {
+      return lifecycleFailure("Unexpected Backend response. Reload to verify event state before trying again.");
+    }
+
+    return {
+      status: "success",
+      message: kind === "close"
+        ? "Backend confirmed closure. New online evidence is closed; review the provisional evidence."
+        : result.replayed === true
+          ? "Backend confirmed the original finalized results. No recalculation occurred."
+          : "Backend confirmed permanent prototype finalization.",
+    };
+  } catch {
+    if (dispatched) refresh(orgId, eventId);
+    return lifecycleFailure("Could not confirm the transition. Reload to verify event state before trying again.");
+  }
+}
+
+export async function closeEvent(_previous: OperationState, form: FormData): Promise<OperationState> {
+  return transitionEvent("close", form);
+}
+
+export async function finalizeEvent(_previous: OperationState, form: FormData): Promise<OperationState> {
+  return transitionEvent("finalize", form);
 }

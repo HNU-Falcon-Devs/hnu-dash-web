@@ -4,7 +4,7 @@ import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { formatManila } from "../../validation";
 import {
-  assignEventStaff, revokeEventStaff, activateEvent, type OperationState,
+  assignEventStaff, revokeEventStaff, activateEvent, closeEvent, finalizeEvent, type OperationState,
 } from "./actions";
 
 const initial: OperationState = { status: "idle", message: "" };
@@ -88,6 +88,51 @@ export function OpenEventForm({
         </p>
       ) : (
         <Button type="submit" isLoading={pending}>Activate DRAFT event</Button>
+      )}
+    </form>
+  );
+}
+
+
+export function EventLifecycleForm({
+  organizationId, eventId, kind,
+}: { organizationId: string; eventId: string; kind: "close" | "finalize" }) {
+  const closing = kind === "close";
+  const [state, action, pending] = useActionState(closing ? closeEvent : finalizeEvent, initial);
+  const needsReload = state.reloadRequired || state.status === "success";
+  const label = closing ? "Close event" : "Finalize attendance";
+  return (
+    <form action={action} aria-label={label} className="space-y-3" aria-busy={pending}>
+      <input name="organization_id" type="hidden" value={organizationId} />
+      <input name="event_id" type="hidden" value={eventId} />
+      <p>
+        {closing
+          ? "Closing stops new online evidence. It does not finalize attendance or certify offline synchronization."
+          : "Finalization permanently stores prototype results for the frozen roster. The Backend alone classifies records; this is not official institutional attendance."}
+      </p>
+      {!needsReload && (
+        <fieldset disabled={pending} className="space-y-3">
+          <label className="flex items-start gap-2">
+            <input type="checkbox" name={"confirm_" + kind} value="yes" required
+              className="mt-1 accent-rose-600" />
+            {closing
+              ? "I confirm closure to new online evidence after all checkpoint windows end."
+              : "I reviewed the provisional evidence and confirm permanent prototype finalization."}
+          </label>
+          <div className="flex flex-wrap gap-2">
+            <Button type="submit" variant="danger" isLoading={pending} disabled={pending}>
+              {pending ? "Submitting…" : label}
+            </Button>
+            <Button type="reset" variant="outline" disabled={pending}>Cancel confirmation</Button>
+          </div>
+        </fieldset>
+      )}
+      {pending && <p role="status" className="text-sm">Waiting for Backend confirmation…</p>}
+      <Feedback state={state} />
+      {needsReload && (
+        <Button type="button" variant="outline" onClick={() => window.location.reload()}>
+          Reload event state
+        </Button>
       )}
     </form>
   );
