@@ -18,6 +18,7 @@ vi.mock("./actions", () => ({
   activateEvent: vi.fn(),
   closeEvent: vi.fn(),
   finalizeEvent: vi.fn(),
+  reconcileOffline: vi.fn(),
 }));
 
 const ORG = "11111111-1111-4111-8111-111111111111";
@@ -27,7 +28,7 @@ const PAST = "44444444-4444-4444-8444-444444444444";
 const CANDIDATE = "55555555-5555-4555-8555-555555555555";
 const CHECKPOINT = "99999999-9999-4999-8999-999999999999";
 const entry = {
-  id: EVENT, organization_id: ORG, title: "Synthetic Staff Event",
+  id: EVENT, organization_id: ORG, offline_enabled: false, offline_upload_cutoff: null, title: "Synthetic Staff Event",
   state: "DRAFT", starts_at: "2026-12-05T00:00:00Z",
   ends_at: "2026-12-06T00:00:00Z",
   roster_frozen_at: "2026-12-04T00:00:00Z", opened_at: null,

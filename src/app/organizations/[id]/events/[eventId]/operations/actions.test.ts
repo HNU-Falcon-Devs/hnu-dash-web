@@ -16,7 +16,7 @@ const STAFF = "33333333-3333-4333-8333-333333333333";
 const ASSIGNMENT = "44444444-4444-4444-8444-444444444444";
 const initial: OperationState = { status: "idle", message: "" };
 const parent = {
-  id: EVENT, organization_id: ORG, state: "DRAFT", roster_frozen_at: "2026-12-01T00:00:00Z",
+  id: EVENT, organization_id: ORG, offline_enabled: false, offline_upload_cutoff: null, state: "DRAFT", roster_frozen_at: "2026-12-01T00:00:00Z",
   starts_at: "2026-12-05T00:00:00Z", ends_at: "2026-12-06T00:00:00Z",
 };
 
