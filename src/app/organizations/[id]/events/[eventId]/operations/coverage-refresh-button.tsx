@@ -21,6 +21,7 @@ type CoverageRefreshAction = () => Promise<CoverageRefreshResult>;
 
 type Props = {
   initialRows: CoverageRow[];
+  offlineEnabled?: boolean;
   initialError: string;
   refreshAction: CoverageRefreshAction;
   page: number;
@@ -73,6 +74,7 @@ function getPageCheckpointStats(rows: CoverageRow[]) {
 
 export function CoverageEvidencePanel({
   initialRows,
+  offlineEnabled = false,
   initialError,
   refreshAction,
   page,
@@ -164,7 +166,7 @@ export function CoverageEvidencePanel({
               </p>
             </div>
             <Table>
-              <caption className="sr-only">Provisional accepted online scan evidence by student and checkpoint</caption>
+              <caption className="sr-only">{offlineEnabled ? "Provisional accepted canonical evidence by student and checkpoint" : "Provisional accepted online scan evidence by student and checkpoint"}</caption>
               <TableHeader>
                 <TableRow>
                   <TableHead scope="col">Student ID</TableHead>

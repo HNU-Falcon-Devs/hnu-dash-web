@@ -23,6 +23,8 @@ export async function readOfflineEvidence(client: Client, event: EventPolicy,
   try {
     const summary = await readOfflineSummary(client, event);
     if (!summary) return null;
+    const maxAddressableRows = (Math.floor(2147483647 / OFFLINE_PAGE_SIZE) + 1) * OFFLINE_PAGE_SIZE;
+    if (summary.preparation_count > maxAddressableRows || summary.claim_count > maxAddressableRows) return null;
     const preparationPage = pageNumber(preparationRequest, summary.preparation_count);
     const claimPage = pageNumber(claimRequest, summary.claim_count);
     const preparationOffset = (preparationPage - 1) * OFFLINE_PAGE_SIZE;
@@ -38,8 +40,17 @@ export async function readOfflineEvidence(client: Client, event: EventPolicy,
       row => row.received_at, Math.min(OFFLINE_PAGE_SIZE, summary.claim_count - claimOffset));
     if (!preparations || !claims) return null;
     // Separate reads are not atomic. Never assert readiness from local row counts.
-    if (summary.unaccounted_count === 0 && preparations.some(row => row.disposition === null)) return null;
-    if (summary.unreviewed_count === 0 && claims.some(row => row.decision === null)) return null;
+    const completed = preparations.filter(row => row.disposition === "completed").length;
+    const unaccounted = preparations.filter(row => row.disposition === null).length;
+    const reviewed = claims.filter(row => row.decision !== null).length;
+    if (completed > summary.completed_count || unaccounted > summary.unaccounted_count
+      || preparations.length - completed - unaccounted > summary.loss_count
+      || reviewed > summary.reviewed_count || claims.length - reviewed > summary.unreviewed_count) return null;
+    const visiblePreparations = new Map(preparations.map(row => [row.preparation_id, row]));
+    if (claims.some(row => {
+      const preparation = visiblePreparations.get(row.preparation_id);
+      return preparation !== undefined && preparation.staff_user_id !== row.staff_user_id;
+    })) return null;
     return { summary, preparations, claims, preparationPage, claimPage };
   } catch {
     return null;

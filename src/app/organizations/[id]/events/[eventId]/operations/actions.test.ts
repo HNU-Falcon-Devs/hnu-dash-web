@@ -440,6 +440,14 @@ describe("M4.4 offline reconciliation actions", () => {
     expect((await reconcileOffline(initial, offline("seal"))).status).toBe("success");
     expect(rpc).toHaveBeenCalledWith("seal_offline_uploads", { eid: EVENT });
   });
+  it("rejects a seal acknowledgement with a wrong new actor or before the cutoff", async () => {
+    setup({ sealed_at: null, sealed_by: null, can_seal: true }, [], [],
+      { event_id: EVENT, sealed_at: sealed, sealed_by: ORG, replayed: false });
+    expect((await reconcileOffline(initial, offline("seal"))).status).toBe("error");
+    setup({ sealed_at: null, sealed_by: null, can_seal: true }, [], [],
+      { event_id: EVENT, sealed_at: "2026-12-05T01:00:00Z", sealed_by: STAFF, replayed: false });
+    expect((await reconcileOffline(initial, offline("seal"))).status).toBe("error");
+  });
   it("blocks unsealed review and ineligible approval, allows explicit rejection", async () => {
     setup({ sealed_at: null, sealed_by: null });
     expect((await reconcileOffline(initial, offline("review", "approve", "Reason", CAPTURE))).status).toBe("error");

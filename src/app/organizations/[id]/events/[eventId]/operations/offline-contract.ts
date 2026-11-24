@@ -67,7 +67,7 @@ function sameTime(a: string | null, b: string | null): boolean {
 }
 export function validPolicy(value: unknown): value is EventPolicy {
   const row = object(value);
-  if (!row || !isUuid(row.id) || typeof row.state !== "string" || typeof row.offline_enabled !== "boolean") return false;
+  if (!row || !isUuid(row.id) || typeof row.state !== "string" || !["DRAFT", "OPEN", "SYNCING", "FINALIZED", "LOCKED"].includes(row.state) || typeof row.offline_enabled !== "boolean") return false;
   if (!row.offline_enabled) return row.offline_upload_cutoff === null;
   return row.state === "DRAFT" ? row.offline_upload_cutoff === null
     : ["OPEN", "SYNCING", "FINALIZED"].includes(row.state) && timestamp(row.offline_upload_cutoff);

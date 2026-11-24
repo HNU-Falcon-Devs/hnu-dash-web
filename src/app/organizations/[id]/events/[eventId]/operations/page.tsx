@@ -444,7 +444,8 @@ export default async function EventOperationsPage({
                   </p>
                 ) : coveragePrerequisitesMet ? (
                   <CoverageEvidencePanel
-                    key={eventId + ":" + event.state + ":" + coveragePage}
+                    key={eventId + ":" + event.state + ":" + coveragePage + (event.offline_enabled ? ":offline:" + (offlineEvidence?.summary.reviewed_count ?? "unavailable") : "")}
+                    offlineEnabled={event.offline_enabled}
                     initialRows={coverageRows}
                     initialError={coverageErrorMessage}
                     refreshAction={refreshCoveragePage}

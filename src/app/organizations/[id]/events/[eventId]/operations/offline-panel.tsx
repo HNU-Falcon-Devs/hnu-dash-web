@@ -26,7 +26,7 @@ function Pages({ root, query, page, total, name, pageKey }: {
     <span>Page {page} of {last}</span>
     {page > 1 && <Link className="underline" href={href(root, query, pageKey, page - 1)}>Previous {name} page</Link>}
     {page < last && <Link className="underline" href={href(root, query, pageKey, page + 1)}>Next {name} page</Link>}
-    <a className="underline" href={href(root, query)}>Reload {name}</a>
+    <a className="underline" href={href(root, query, pageKey, page)}>Reload {name}</a>
   </nav>;
 }
 export function OfflinePanel({ event, organizationId, evidence, root, query, coverageReady }: {
@@ -105,7 +105,7 @@ export function OfflinePanel({ event, organizationId, evidence, root, query, cov
           : <p role="status">Finalization requires authoritative reconciliation readiness and current provisional coverage. Reload evidence before continuing.</p>}
       </section>}
       {event.state === "FINALIZED" && <p>Finalized reconciliation history is read-only.</p>}
-      <p className="text-xs">Pages are read separately, not one atomic snapshot. Reload to obtain current Backend evidence.</p>
+      <p className="text-xs">Pages are read separately, not one atomic snapshot. Page links preserve the other page selection. Reloading reauthorizes Operations and reloads current Backend evidence.</p>
     </CardContent>
   </Card>;
 }

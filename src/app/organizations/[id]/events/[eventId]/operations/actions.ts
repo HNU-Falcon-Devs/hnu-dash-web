@@ -355,6 +355,7 @@ export async function reconcileOffline(_previous: OperationState, form: FormData
     let args: Record<string, unknown> = { eid: eventId };
     let previousAudit: Record<string, unknown> | null = null;
     let uploadedCount: number | null = null;
+    let earliestAuditTime: string | null = null;
     if (operation === "enable") {
       if (event.state !== "DRAFT") return lifecycleFailure("Offline opt-in is only available in DRAFT. Reload event state.");
       rpcName = "enable_event_offline";
@@ -365,6 +366,7 @@ export async function reconcileOffline(_previous: OperationState, form: FormData
         if (!summary || (!summary.can_seal && summary.sealed_at === null)) {
           return lifecycleFailure("The Backend has not confirmed upload sealing readiness. Reload.");
         }
+        earliestAuditTime = summary.upload_cutoff;
         if (summary.sealed_at !== null) previousAudit = { sealed_at: summary.sealed_at, sealed_by: summary.sealed_by };
         rpcName = "seal_offline_uploads";
       } else {
@@ -372,6 +374,7 @@ export async function reconcileOffline(_previous: OperationState, form: FormData
         if (!evidence || evidence.summary.sealed_at === null) {
           return lifecycleFailure("Sealed uploads and current authoritative evidence are required. Reload.");
         }
+        earliestAuditTime = evidence.summary.sealed_at;
         if (operation === "confirm") {
           if (!evidence.summary.can_confirm && evidence.summary.confirmed_at === null) {
             return lifecycleFailure("The Backend has not confirmed reconciliation readiness. Reload.");
@@ -417,7 +420,9 @@ export async function reconcileOffline(_previous: OperationState, form: FormData
     if (operation !== "enable") {
       const row = object(result.data)!;
       const actorField = operation === "seal" ? "sealed_by" : operation === "confirm" ? "confirmed_by" : operation === "loss" ? "accounted_by" : "reviewed_by";
-      if ((row.replayed === false && row[actorField] !== actor)
+      const timeField = operation === "seal" ? "sealed_at" : operation === "confirm" ? "confirmed_at" : operation === "loss" ? "accounted_at" : "reviewed_at";
+      if ((earliestAuditTime !== null && (!offlineTimestamp(row[timeField]) || Date.parse(row[timeField] as string) < Date.parse(earliestAuditTime)))
+        || (row.replayed === false && row[actorField] !== actor)
         || (uploadedCount !== null && row.uploaded_count !== uploadedCount)
         || (previousAudit && (row.replayed !== true || Object.entries(previousAudit).some(([key, value]) => row[key] !== value)))) {
         return lifecycleFailure("The Backend acknowledgement did not match the authoritative audit. Reload evidence.");

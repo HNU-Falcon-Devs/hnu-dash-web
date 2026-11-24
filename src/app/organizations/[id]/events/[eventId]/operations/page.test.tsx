@@ -630,6 +630,7 @@ describe("M4.4 offline Operations workspace", () => {
     await show();
     expect(screen.getByText(/Known preparations are not devices/)).toBeInTheDocument();
     expect(screen.getByText(/Claimed time \(untrusted\)/)).toBeInTheDocument();
+    expect(screen.getByRole("table", { name: "Provisional accepted canonical evidence by student and checkpoint" })).toBeInTheDocument();
     expect(screen.getByText(/Ineligible for approval/)).toBeInTheDocument();
     expect(screen.queryByRole("form", { name: "Seal offline uploads" })).not.toBeInTheDocument();
     expect(screen.queryByRole("form", { name: "Review offline claim " + CAPTURE })).not.toBeInTheDocument();
