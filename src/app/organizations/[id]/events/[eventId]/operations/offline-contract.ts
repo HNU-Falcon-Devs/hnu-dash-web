@@ -88,12 +88,15 @@ export function parseSummary(value: unknown, event: EventPolicy): Summary | null
     || !(typeof row.can_seal === "boolean" || (row.can_seal === null && row.upload_cutoff === null))
     || typeof row.can_confirm !== "boolean" || typeof row.can_finalize !== "boolean") return null;
   const ready = row.sealed_at !== null && row.unaccounted_count === 0 && row.unreviewed_count === 0;
+  if ((row.sealed_at !== null && (!timestamp(row.sealed_at) || row.upload_cutoff === null || Date.parse(row.sealed_at) < Date.parse(row.upload_cutoff)))
+    || (row.confirmed_at !== null && (!timestamp(row.confirmed_at) || !timestamp(row.sealed_at) || Date.parse(row.confirmed_at) < Date.parse(row.sealed_at)))) return null;
   if ((row.can_seal && (event.state !== "SYNCING" || row.sealed_at !== null || row.upload_cutoff === null))
     || (row.confirmed_at !== null && !ready)
     || (row.can_confirm && (event.state !== "SYNCING" || !ready || row.confirmed_at !== null))
     || (row.can_finalize && (event.state !== "SYNCING" || !ready || row.confirmed_at === null))
     || (event.state === "FINALIZED" && (!ready || row.confirmed_at === null))
-    || (["DRAFT", "OPEN"].includes(event.state) && row.sealed_at !== null)) return null;
+    || (["DRAFT", "OPEN"].includes(event.state) && (row.sealed_at !== null || row.reviewed_count !== 0 || row.loss_count !== 0))
+    || (event.state === "DRAFT" && (row.preparation_count !== 0 || row.claim_count !== 0))) return null;
   return row as Summary;
 }
 function lossFields(row: Record<string, unknown>): boolean {

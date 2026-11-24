@@ -354,9 +354,9 @@ export default async function EventOperationsPage({
               </div>
             </div>
 
-            <OfflinePanel key={event.id + ":" + event.state + ":" + event.offline_enabled} event={event}
+            {!event.offline_enabled && <OfflinePanel key={event.id + ":" + event.state + ":" + event.offline_enabled} event={event}
               organizationId={orgId} evidence={offlineEvidence} root={root} query={query}
-              coverageReady={coveragePrerequisitesMet && !coverageErrorMessage && coverageRows.length > 0} />
+              coverageReady={coveragePrerequisitesMet && !coverageErrorMessage && coverageRows.length > 0} />}
 
             <Card>
               <CardHeader><CardTitle>Event activation</CardTitle></CardHeader>
@@ -369,7 +369,7 @@ export default async function EventOperationsPage({
                 <p>Configured checkpoints: {checkpoints.length} ({validWindows ? "valid schedule windows" : "not ready"})</p>
                 <p>Assigned Staff: {active.length}. There is no minimum Staff count required to open.</p>
                 {canOpen ? (
-                  <OpenEventForm organizationId={orgId} eventId={eventId} />
+                  <OpenEventForm key={event.id + ":open:" + event.offline_enabled} organizationId={orgId} eventId={eventId} offlineEnabled={event.offline_enabled} />
                 ) : event.state === "DRAFT" ? (
                   <p role="status" className="text-amber-700 dark:text-amber-300">
                     Activation is unavailable until the roster is frozen, nonempty, and checkpoints are valid.
@@ -466,6 +466,10 @@ export default async function EventOperationsPage({
                 </p>
               </CardContent>
             </Card>
+
+            {event.offline_enabled && <OfflinePanel key={event.id + ":" + event.state + ":" + event.offline_enabled} event={event}
+              organizationId={orgId} evidence={offlineEvidence} root={root} query={query}
+              coverageReady={coveragePrerequisitesMet && !coverageErrorMessage && coverageRows.length > 0} />}
 
             {event.state === "SYNCING" && !event.offline_enabled && (
               <Card>

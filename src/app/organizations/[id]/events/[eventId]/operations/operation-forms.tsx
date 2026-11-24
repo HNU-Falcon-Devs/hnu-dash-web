@@ -64,16 +64,18 @@ export function RevokeEventStaffForm({
 }
 
 export function OpenEventForm({
-  organizationId, eventId,
-}: { organizationId: string; eventId: string }) {
+  organizationId, eventId, offlineEnabled = false,
+}: { organizationId: string; eventId: string; offlineEnabled?: boolean }) {
   const [state, action, pending] = useActionState(activateEvent, initial);
   return (
     <form action={action} aria-label="Activate event" className="space-y-3">
       <input name="organization_id" type="hidden" value={organizationId} />
       <input name="event_id" type="hidden" value={eventId} />
+      <input name="expected_offline_enabled" type="hidden" value={String(offlineEnabled)} />
       <p className="text-slate-600 dark:text-slate-300">
         Opening changes DRAFT to OPEN. The frozen roster and checkpoints cannot be edited afterward.
         This does not start scanning, synchronization, or attendance reconciliation.
+        {offlineEnabled && " Offline-enabled: activation fixes the upload cutoff 24 hours after the last checkpoint closes."}
       </p>
       {state.status !== "success" && (
         <label className="flex items-start gap-2">
