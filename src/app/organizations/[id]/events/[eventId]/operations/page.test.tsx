@@ -16,6 +16,8 @@ vi.mock("./actions", () => ({
   assignEventStaff: vi.fn(),
   revokeEventStaff: vi.fn(),
   activateEvent: vi.fn(),
+  closeEvent: vi.fn(),
+  finalizeEvent: vi.fn(),
 }));
 
 const ORG = "11111111-1111-4111-8111-111111111111";
@@ -430,8 +432,134 @@ describe("provisional checkpoint coverage", () => {
       { eid: EVENT, p_limit: 200, p_offset: 200 },
       { eid: EVENT, p_limit: 200, p_offset: 200 },
     ]);
-    expect(eventOne).toHaveBeenCalledTimes(1);
+    expect(eventOne).toHaveBeenCalledTimes(2);
     expect(assignmentOrder).toHaveBeenCalledTimes(1);
     expect(rpc.mock.calls.filter(([name]) => name === "can_manage_org")).toHaveLength(2);
+  });
+});
+
+
+describe("M3.2B organizer lifecycle and finalized results", () => {
+  const finalTime = "2026-12-05T04:00:00Z";
+  const finalRow = {
+    event_id: EVENT, student_id: "00001234", status: "PRESENT",
+    required_checkpoint_count: 2, accepted_checkpoint_count: 2,
+    finalized_at: finalTime, finalized_by: STAFF,
+  };
+  function setState(state: string) {
+    eventOne.mockResolvedValue({ data: { ...entry, state, opened_at: "2026-12-04T08:00:00Z" }, error: null });
+  }
+  function resultCalls() {
+    return rpc.mock.calls.filter(([name]) => name === "get_event_finalized_results");
+  }
+  function results(data: unknown, error: unknown = null) {
+    rpc.mockImplementation(async (name: string) => name === "can_manage_org"
+      ? { data: true, error: null }
+      : name === "get_event_checkpoint_coverage" ? { data: [acceptedRow], error: null }
+      : { data, error });
+  }
+
+  it("offers explicit closure with server-time prerequisite, not finalization, on OPEN", async () => {
+    setState("OPEN");
+    await show();
+    expect(screen.getByRole("form", { name: "Close event" })).toBeInTheDocument();
+    expect(screen.getByText(/Backend verifies server time/)).toBeInTheDocument();
+    expect(screen.queryByRole("form", { name: "Finalize attendance" })).not.toBeInTheDocument();
+    expect(resultCalls()).toHaveLength(0);
+  });
+
+  it("offers finalization only after closure with reviewable provisional evidence", async () => {
+    setState("SYNCING");
+    results([]);
+    await show();
+    expect(screen.getByText(/not offline synchronization completion/)).toBeInTheDocument();
+    expect(screen.getByRole("form", { name: "Finalize attendance" })).toBeInTheDocument();
+    expect(screen.queryByRole("form", { name: "Close event" })).not.toBeInTheDocument();
+    expect(coverageCalls()).toHaveLength(1);
+    expect(resultCalls()).toHaveLength(0);
+  });
+
+  it("does not offer finalization without reviewable evidence", async () => {
+    setState("SYNCING");
+    await show();
+    expect(screen.queryByRole("form", { name: "Finalize attendance" })).not.toBeInTheDocument();
+    expect(screen.getByText(/obtain evidence for review/)).toBeInTheDocument();
+  });
+
+  it.each(["DRAFT", "LOCKED"])("does not offer closure, finalization or result reads in %s", async state => {
+    setState(state);
+    await show();
+    expect(screen.queryByRole("form", { name: "Close event" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("form", { name: "Finalize attendance" })).not.toBeInTheDocument();
+    expect(resultCalls()).toHaveLength(0);
+  });
+
+  it("renders authoritative classifications, text IDs, counts, and audit only on FINALIZED", async () => {
+    setState("FINALIZED");
+    results([
+      finalRow,
+      { ...finalRow, student_id: "00001235", status: "INCOMPLETE", accepted_checkpoint_count: 1 },
+      { ...finalRow, student_id: "00001236", status: "ABSENT", accepted_checkpoint_count: 0 },
+    ]);
+    rosterEq.mockResolvedValueOnce({ count: 600, error: null });
+    await show(ORG, EVENT, { results_page: "2", coverage_page: "1", other: "keep" });
+    expect(resultCalls()).toEqual([["get_event_finalized_results", { eid: EVENT, p_limit: 200, p_offset: 200 }]]);
+    const table = screen.getByRole("table", { name: "Finalized prototype attendance results" });
+    expect(within(table).getByText("00001234")).toBeInTheDocument();
+    for (const status of ["PRESENT", "INCOMPLETE", "ABSENT"]) expect(within(table).getByText(status)).toBeInTheDocument();
+    expect(screen.getByText("Finalized at (Asia/Manila)")).toBeInTheDocument();
+    expect(screen.getByText("Finalized by (Auth UUID)")).toBeInTheDocument();
+    expect(document.querySelector('time[datetime="' + finalTime + '"]')).toHaveTextContent(/12:00/);
+    expect(screen.getByRole("link", { name: "Next results page" })).toHaveAttribute("href",
+      "/organizations/" + ORG + "/events/" + EVENT + "/operations?coverage_page=1&other=keep&results_page=3");
+    expect(screen.queryByRole("form", { name: "Finalize attendance" })).not.toBeInTheDocument();
+    expect(from).not.toHaveBeenCalledWith("attendance_records");
+  });
+
+  it.each([["0", 0], ["invalid", 0], ["99999999999999999999", 0], ["100", 400]])(
+    "bounds result page %s to a valid offset", async (page, offset) => {
+      setState("FINALIZED");
+      results([]);
+      rosterEq.mockResolvedValueOnce({ count: 600, error: null });
+      await show(ORG, EVENT, { results_page: page as string });
+      expect(resultCalls()).toEqual([["get_event_finalized_results", { eid: EVENT, p_limit: 200, p_offset: offset }]]);
+      expect(screen.getByText(/No finalized result rows were returned/)).toBeInTheDocument();
+      expect(screen.queryByRole("table", { name: "Finalized prototype attendance results" })).not.toBeInTheDocument();
+    },
+  );
+
+  it("denies unknown or foreign events and manager authorization failures before result reads", async () => {
+    setState("FINALIZED");
+    eventOne.mockResolvedValueOnce({ data: { ...entry, state: "FINALIZED", organization_id: STAFF }, error: null });
+    await expect(EventOperationsPage({ params: Promise.resolve({ id: ORG, eventId: EVENT }) })).rejects.toThrow("Not found");
+    rpc.mockResolvedValueOnce({ data: false, error: null });
+    await show();
+    expect(resultCalls()).toHaveLength(0);
+  });
+
+  it.each(["42501", "22023", "55000", "unknown"])("shows safe finalized results error %s", async code => {
+    setState("FINALIZED");
+    results(null, { code, message: "private database detail" });
+    await show();
+    expect(screen.getByRole("alert")).toHaveTextContent(/results|finalized event/i);
+    expect(screen.queryByText("private database detail")).not.toBeInTheDocument();
+  });
+
+  it("rejects malformed or mismatched result rows without rendering them", async () => {
+    setState("FINALIZED");
+    results([{ ...finalRow, event_id: ORG }]);
+    await show();
+    expect(screen.getByRole("alert")).toHaveTextContent("unexpected finalized results response");
+    expect(screen.queryByRole("table", { name: "Finalized prototype attendance results" })).not.toBeInTheDocument();
+  });
+
+  it("rechecks the event association before refreshing provisional evidence", async () => {
+    eventOne.mockResolvedValueOnce({ data: entry, error: null })
+      .mockResolvedValueOnce({ data: { ...entry, organization_id: STAFF }, error: null });
+    results([]);
+    await show();
+    fireEvent.click(screen.getByRole("button", { name: "Refresh checkpoint coverage" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("unavailable for this account or event"));
+    expect(coverageCalls()).toHaveLength(1);
   });
 });
