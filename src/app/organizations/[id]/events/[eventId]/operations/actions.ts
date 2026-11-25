@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { getAuthState } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { isUuid } from "../../validation";
+import { decision, loss, reason, object, timestamp as offlineTimestamp, validPolicy, validAcknowledgement, type OfflineKind, type EventPolicy } from "./offline-contract";
+import { readOfflineEvidence, readOfflineSummary } from "./offline-data";
 
 export type OperationState = {
   status: "idle" | "success" | "error";
@@ -12,7 +14,7 @@ export type OperationState = {
   reloadRequired?: boolean;
 };
 
-type ManagedEvent = {
+type ManagedEvent = EventPolicy & {
   id: string;
   organization_id: string;
   state: string;
@@ -62,12 +64,13 @@ async function authorizedEvent(orgId: string, eventId: string): Promise<ManagedC
       : "You are not authorized to manage this organization's events." };
   }
   const result = await client.from("events")
-    .select("id,organization_id,state,roster_frozen_at,starts_at,ends_at")
+    .select("id,organization_id,state,roster_frozen_at,starts_at,ends_at,offline_enabled,offline_upload_cutoff")
     .eq("organization_id", orgId).eq("id", eventId).maybeSingle();
   if (result.error) return { message: "Could not verify the event and its organization. Try again." };
   if (!result.data || result.data.id !== eventId || result.data.organization_id !== orgId) {
     return { message: "Event not found in this organization or no longer accessible." };
   }
+  if (!validPolicy(result.data)) return { message: "Could not verify the event offline policy. Reload before continuing." };
   return { client, event: result.data as ManagedEvent };
 }
 
@@ -173,6 +176,9 @@ export async function activateEvent(
     if (context.event.state !== "DRAFT") {
       return failed("Only a DRAFT event can be activated. Reload for its current state.");
     }
+    if (form.get("expected_offline_enabled") !== String(context.event.offline_enabled)) {
+      return failed("The event offline policy changed or could not be confirmed. Reload before activation.");
+    }
     if (!context.event.roster_frozen_at) {
       return failed("Freeze this event's roster before activation.");
     }
@@ -262,6 +268,20 @@ async function transitionEvent(kind: LifecycleOperation, form: FormData): Promis
       return lifecycleFailure("This transition is not available in the current event state. Reload to verify.");
     }
 
+    let offlineActor: string | null = null;
+    if (kind === "finalize" && context.event.offline_enabled) {
+      if (form.get("confirm_offline_finalize") !== "yes" || context.event.state !== "SYNCING") {
+        return lifecycleFailure("Offline finalization requires a separate current reconciliation confirmation. Reload event operations.");
+      }
+      const evidence = await readOfflineEvidence(context.client, context.event, form.get("preparations_page"), form.get("claims_page"));
+      if (!evidence?.summary.can_finalize) return lifecycleFailure("The Backend has not confirmed readiness and current offline evidence. Reload before finalizing.");
+      const identity = await context.client.auth.getUser();
+      if (identity.error || !isUuid(identity.data.user?.id)) return lifecycleFailure("Could not verify the current manager identity. Reload.");
+      offlineActor = identity.data.user.id;
+    } else if (kind === "finalize" && form.has("confirm_offline_finalize")) {
+      return lifecycleFailure("The event offline policy changed. Reload before finalizing.");
+    }
+
     // Timing, roster readiness, authorization and persisted results remain
     // Backend-owned. Finalization alone permits a confirmed replay.
     dispatched = true;
@@ -284,6 +304,7 @@ async function transitionEvent(kind: LifecycleOperation, form: FormData): Promis
       || (kind === "finalize" && (
         typeof result.record_count !== "number" || !Number.isSafeInteger(result.record_count)
         || result.record_count < 1 || typeof result.replayed !== "boolean"
+        || (offlineActor !== null && (!offlineTimestamp(timestamp) || (result.replayed === false && actor !== offlineActor)))
       ))) {
       return lifecycleFailure("Unexpected Backend response. Reload to verify event state before trying again.");
     }
@@ -308,4 +329,108 @@ export async function closeEvent(_previous: OperationState, form: FormData): Pro
 
 export async function finalizeEvent(_previous: OperationState, form: FormData): Promise<OperationState> {
   return transitionEvent("finalize", form);
+}
+
+
+export async function reconcileOffline(_previous: OperationState, form: FormData): Promise<OperationState> {
+  const orgId = form.get("organization_id");
+  const eventId = form.get("event_id");
+  const kind = form.get("operation");
+  const target = form.get("target_id");
+  const choice = form.get("choice");
+  const exactReason = form.get("reason");
+  if (!isUuid(orgId) || !isUuid(eventId) || !["enable", "seal", "loss", "review", "confirm"].some(v => v === kind)
+    || form.get("confirmed") !== "yes") return failed("Valid scope and explicit confirmation are required.");
+  const operation = kind as OfflineKind;
+  if ((operation === "loss" || operation === "review")
+    && (!isUuid(target) || !reason(exactReason) || !(operation === "loss" ? loss(choice) : decision(choice)))) {
+    return failed("Choose one valid decision or loss category and enter a non-whitespace reason of 1–500 characters.");
+  }
+  let dispatched = false;
+  try {
+    const context = await authorizedEvent(orgId, eventId);
+    if (!context.client) return lifecycleFailure(context.message);
+    const { client, event } = context;
+    let rpcName: string;
+    let args: Record<string, unknown> = { eid: eventId };
+    let previousAudit: Record<string, unknown> | null = null;
+    let uploadedCount: number | null = null;
+    let earliestAuditTime: string | null = null;
+    if (operation === "enable") {
+      if (event.state !== "DRAFT") return lifecycleFailure("Offline opt-in is only available in DRAFT. Reload event state.");
+      rpcName = "enable_event_offline";
+    } else {
+      if (!event.offline_enabled) return lifecycleFailure("Offline reconciliation is unavailable for this event.");
+      if (operation === "seal") {
+        const summary = await readOfflineSummary(client, event);
+        if (!summary || (!summary.can_seal && summary.sealed_at === null)) {
+          return lifecycleFailure("The Backend has not confirmed upload sealing readiness. Reload.");
+        }
+        earliestAuditTime = summary.upload_cutoff;
+        if (summary.sealed_at !== null) previousAudit = { sealed_at: summary.sealed_at, sealed_by: summary.sealed_by };
+        rpcName = "seal_offline_uploads";
+      } else {
+        const evidence = await readOfflineEvidence(client, event, form.get("preparations_page"), form.get("claims_page"));
+        if (!evidence || evidence.summary.sealed_at === null) {
+          return lifecycleFailure("Sealed uploads and current authoritative evidence are required. Reload.");
+        }
+        earliestAuditTime = evidence.summary.sealed_at;
+        if (operation === "confirm") {
+          if (!evidence.summary.can_confirm && evidence.summary.confirmed_at === null) {
+            return lifecycleFailure("The Backend has not confirmed reconciliation readiness. Reload.");
+          }
+          if (evidence.summary.confirmed_at !== null) previousAudit = { confirmed_at: evidence.summary.confirmed_at, confirmed_by: evidence.summary.confirmed_by };
+          rpcName = "confirm_offline_reconciliation";
+        } else if (operation === "loss") {
+          const row = evidence.preparations.find(item => item.preparation_id === target);
+          if (!row || (row.disposition === null ? event.state !== "SYNCING" :
+            row.disposition !== choice || row.reason !== exactReason)) {
+            return lifecycleFailure("This preparation is unavailable or already accounted for with different evidence. Reload.");
+          }
+          uploadedCount = row.uploaded_count;
+          if (row.disposition !== null) previousAudit = { accounted_at: row.accounted_at, accounted_by: row.accounted_by };
+          rpcName = "account_offline_preparation_loss";
+          args = { ...args, p_preparation_id: target, p_disposition: choice, p_reason: exactReason };
+        } else {
+          const row = evidence.claims.find(item => item.capture_id === target);
+          if (!row || (row.decision === null ? event.state !== "SYNCING" || (choice === "approve" && !row.review_eligible)
+            : row.decision !== choice || row.reason !== exactReason)) {
+            return lifecycleFailure("This claim is unavailable, ineligible for approval, or already reviewed with a different decision. Reload.");
+          }
+          if (row.decision !== null) previousAudit = { reviewed_at: row.reviewed_at, reviewed_by: row.reviewed_by, receipt_id: row.receipt_id, receipt_outcome: row.receipt_outcome };
+          rpcName = "review_offline_capture";
+          args = { ...args, p_capture_id: target, p_decision: choice, p_reason: exactReason };
+        }
+      }
+    }
+    const identity = await client.auth.getUser();
+    if (identity.error || !isUuid(identity.data.user?.id)) return lifecycleFailure("Could not verify the current manager identity. Reload.");
+    const actor = identity.data.user.id;
+    dispatched = true;
+    const result = await client.rpc(rpcName, args);
+    refresh(orgId, eventId);
+    if (result.error) {
+      return lifecycleFailure(result.error.code === "23505"
+        ? "The Backend reports conflicting immutable evidence. Reload the recorded decision before continuing."
+        : "The Backend did not confirm this operation. Reload authoritative evidence before an explicit retry.");
+    }
+    if (!validAcknowledgement(operation, result.data, eventId, typeof target === "string" ? target : null, choice, exactReason)) {
+      return lifecycleFailure("Unexpected Backend acknowledgement. Reload authoritative evidence before continuing.");
+    }
+    if (operation !== "enable") {
+      const row = object(result.data)!;
+      const actorField = operation === "seal" ? "sealed_by" : operation === "confirm" ? "confirmed_by" : operation === "loss" ? "accounted_by" : "reviewed_by";
+      const timeField = operation === "seal" ? "sealed_at" : operation === "confirm" ? "confirmed_at" : operation === "loss" ? "accounted_at" : "reviewed_at";
+      if ((earliestAuditTime !== null && (!offlineTimestamp(row[timeField]) || Date.parse(row[timeField] as string) < Date.parse(earliestAuditTime)))
+        || (row.replayed === false && row[actorField] !== actor)
+        || (uploadedCount !== null && row.uploaded_count !== uploadedCount)
+        || (previousAudit && (row.replayed !== true || Object.entries(previousAudit).some(([key, value]) => row[key] !== value)))) {
+        return lifecycleFailure("The Backend acknowledgement did not match the authoritative audit. Reload evidence.");
+      }
+    }
+    return { status: "success", message: "Backend confirmed the operation. Reload to view authoritative evidence.", reloadRequired: true };
+  } catch {
+    if (dispatched) refresh(orgId, eventId);
+    return lifecycleFailure("The operation could not be confirmed. Reload authoritative evidence before an explicit retry.");
+  }
 }

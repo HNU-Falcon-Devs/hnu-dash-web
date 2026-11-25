@@ -3,7 +3,7 @@ import { getAuthState } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import {
-  activateEvent, assignEventStaff, revokeEventStaff, closeEvent, finalizeEvent, type OperationState,
+  activateEvent, assignEventStaff, revokeEventStaff, closeEvent, finalizeEvent, reconcileOffline, type OperationState,
 } from "./actions";
 
 vi.mock("@/lib/auth", () => ({ getAuthState: vi.fn() }));
@@ -16,11 +16,12 @@ const STAFF = "33333333-3333-4333-8333-333333333333";
 const ASSIGNMENT = "44444444-4444-4444-8444-444444444444";
 const initial: OperationState = { status: "idle", message: "" };
 const parent = {
-  id: EVENT, organization_id: ORG, state: "DRAFT", roster_frozen_at: "2026-12-01T00:00:00Z",
+  id: EVENT, organization_id: ORG, offline_enabled: false, offline_upload_cutoff: null, state: "DRAFT", roster_frozen_at: "2026-12-01T00:00:00Z",
   starts_at: "2026-12-05T00:00:00Z", ends_at: "2026-12-06T00:00:00Z",
 };
 
 const rpc = vi.fn();
+const getUser = vi.fn();
 const eventOne = vi.fn();
 const eventQuery = {
   eq: vi.fn(() => eventQuery),
@@ -57,6 +58,7 @@ function form(kind: "assign" | "revoke" | "open" | "close" | "finalize", overrid
     data.set("assignment_id", overrides.assignmentId ?? ASSIGNMENT);
     if (overrides.confirmed !== false) data.set("confirm_revoke", "yes");
   }
+  if (kind === "open") data.set("expected_offline_enabled", "false");
   if (["open", "close", "finalize"].includes(kind) && overrides.confirmed !== false) data.set("confirm_" + kind, "yes");
   return data;
 }
@@ -64,7 +66,8 @@ function form(kind: "assign" | "revoke" | "open" | "close" | "finalize", overrid
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getAuthState).mockResolvedValue({ status: "authenticated", email: "manager@hnu.edu.ph" });
-  vi.mocked(createClient).mockResolvedValue({ rpc, from } as unknown as Awaited<ReturnType<typeof createClient>>);
+  getUser.mockResolvedValue({ data: { user: { id: STAFF } }, error: null });
+  vi.mocked(createClient).mockResolvedValue({ rpc, from, auth: { getUser } } as unknown as Awaited<ReturnType<typeof createClient>>);
   rpc.mockImplementation(async (name: string) => ({
     data: name === "can_manage_org" ? true :
       name === "assign_event_staff" ? ASSIGNMENT :
@@ -363,4 +366,165 @@ describe("M3.2B lifecycle actions", () => {
       expect(revalidatePath).toHaveBeenCalledWith(path);
     },
   );
+});
+
+
+describe("M4.4 offline reconciliation actions", () => {
+  const cutoff = "2026-12-06T03:00:00Z";
+  const sealed = "2026-12-06T03:01:00Z";
+  const confirmed = "2026-12-06T04:00:00Z";
+  const CAPTURE = "66666666-6666-4666-8666-666666666666";
+  const RECEIPT = "77777777-7777-4777-8777-777777777777";
+  const prep = { preparation_id: ASSIGNMENT, assignment_id: ASSIGNMENT, staff_user_id: STAFF,
+    issued_at: "2026-12-05T01:00:00Z", expires_at: "2026-12-05T03:00:00Z", revoked_at: null,
+    uploaded_count: 1, disposition: null, declared_count: null, reason: null, accounted_at: null, accounted_by: null };
+  const claim = { capture_id: CAPTURE, preparation_id: ASSIGNMENT, checkpoint_id: ASSIGNMENT,
+    student_id: "00001234", staff_user_id: STAFF, claimed_at: "2026-12-05T01:01:00Z",
+    received_at: "2026-12-05T02:00:00Z", review_eligible: true, decision: null, reason: null,
+    receipt_id: null, receipt_outcome: null, reviewed_at: null, reviewed_by: null };
+  const summary = { event_id: EVENT, event_state: "SYNCING", upload_cutoff: cutoff,
+    sealed_at: sealed, sealed_by: STAFF, confirmed_at: null, confirmed_by: null,
+    preparation_count: 1, completed_count: 0, loss_count: 0, unaccounted_count: 1,
+    claim_count: 1, reviewed_count: 0, unreviewed_count: 1, can_seal: false, can_confirm: false, can_finalize: false };
+  function setup(overrides: Record<string, unknown> = {}, sessions: unknown = [prep], claims: unknown = [claim],
+    ack: unknown = null, error: unknown = null) {
+    eventOne.mockResolvedValue({ data: { ...parent, state: "SYNCING", offline_enabled: true, offline_upload_cutoff: cutoff }, error: null });
+    rpc.mockImplementation(async (name: string) => name === "can_manage_org" ? { data: true, error: null }
+      : name === "get_event_offline_summary" ? { data: { ...summary, ...overrides }, error: null }
+      : name === "get_event_offline_preparations" ? { data: sessions, error: null }
+      : name === "get_event_offline_claims" ? { data: claims, error: null } : { data: ack, error });
+  }
+  function offline(kind: string, choice = "", why = "", target = ASSIGNMENT) {
+    const f = form("finalize");
+    f.set("operation", kind); f.set("confirmed", "yes");
+    f.set("target_id", target); f.set("choice", choice); f.set("reason", why);
+    f.set("preparations_page", "1"); f.set("claims_page", "1");
+    return f;
+  }
+  it("enables explicitly only in DRAFT with authoritative boolean acknowledgment", async () => {
+    rpc.mockResolvedValueOnce({ data: true, error: null }).mockResolvedValueOnce({ data: true, error: null });
+    expect((await reconcileOffline(initial, offline("enable"))).status).toBe("success");
+    expect(rpc.mock.calls).toEqual([["can_manage_org", { org_id: ORG }], ["enable_event_offline", { eid: EVENT }]]);
+    setup();
+    expect((await reconcileOffline(initial, offline("enable"))).status).toBe("error");
+    expect(rpc.mock.calls.filter(([name]) => name === "enable_event_offline")).toHaveLength(1);
+  });
+  it("blocks stale activation policy without silently enabling offline attendance", async () => {
+    eventOne.mockResolvedValue({ data: { ...parent, offline_enabled: true }, error: null });
+    expect((await activateEvent(initial, form("open"))).status).toBe("error");
+    expect(rpc).not.toHaveBeenCalledWith("open_event", expect.anything());
+  });
+  it("requires manager permission, matching event scope and explicit confirmation", async () => {
+    setup();
+    const unconfirmed = offline("seal"); unconfirmed.delete("confirmed");
+    expect((await reconcileOffline(initial, unconfirmed)).status).toBe("error");
+    expect(getAuthState).not.toHaveBeenCalled();
+    rpc.mockResolvedValueOnce({ data: false, error: null });
+    expect((await reconcileOffline(initial, offline("seal"))).status).toBe("error");
+    eventOne.mockResolvedValueOnce({ data: { ...parent, organization_id: STAFF }, error: null });
+    expect((await reconcileOffline(initial, offline("seal"))).status).toBe("error");
+    expect(rpc.mock.calls.every(([name]) => name === "can_manage_org")).toBe(true);
+  });
+  it("does not read manager evidence for online-only events or missing policy", async () => {
+    expect((await reconcileOffline(initial, offline("seal"))).status).toBe("error");
+    eventOne.mockResolvedValueOnce({ data: { ...parent, offline_enabled: undefined }, error: null });
+    expect((await reconcileOffline(initial, offline("seal"))).status).toBe("error");
+    expect(rpc.mock.calls.every(([name]) => name === "can_manage_org")).toBe(true);
+  });
+  it("uses Backend readiness, never local clock, for sealing", async () => {
+    setup({ sealed_at: null, sealed_by: null, can_seal: false });
+    expect((await reconcileOffline(initial, offline("seal"))).status).toBe("error");
+    expect(rpc).not.toHaveBeenCalledWith("seal_offline_uploads", expect.anything());
+    setup({ sealed_at: null, sealed_by: null, can_seal: true }, [], [],
+      { event_id: EVENT, sealed_at: sealed, sealed_by: STAFF, replayed: false });
+    expect((await reconcileOffline(initial, offline("seal"))).status).toBe("success");
+    expect(rpc).toHaveBeenCalledWith("seal_offline_uploads", { eid: EVENT });
+  });
+  it("rejects a seal acknowledgement with a wrong new actor or before the cutoff", async () => {
+    setup({ sealed_at: null, sealed_by: null, can_seal: true }, [], [],
+      { event_id: EVENT, sealed_at: sealed, sealed_by: ORG, replayed: false });
+    expect((await reconcileOffline(initial, offline("seal"))).status).toBe("error");
+    setup({ sealed_at: null, sealed_by: null, can_seal: true }, [], [],
+      { event_id: EVENT, sealed_at: "2026-12-05T01:00:00Z", sealed_by: STAFF, replayed: false });
+    expect((await reconcileOffline(initial, offline("seal"))).status).toBe("error");
+  });
+  it("blocks unsealed review and ineligible approval, allows explicit rejection", async () => {
+    setup({ sealed_at: null, sealed_by: null });
+    expect((await reconcileOffline(initial, offline("review", "approve", "Reason", CAPTURE))).status).toBe("error");
+    setup({}, [prep], [{ ...claim, review_eligible: false }], {
+      capture_id: CAPTURE, decision: "reject", reason: " Insufficient evidence ", receipt_id: null,
+      receipt_outcome: null, reviewed_at: confirmed, reviewed_by: STAFF, replayed: false,
+    });
+    expect((await reconcileOffline(initial, offline("review", "approve", "Reason", CAPTURE))).status).toBe("error");
+    expect(rpc).not.toHaveBeenCalledWith("review_offline_capture", expect.anything());
+    expect((await reconcileOffline(initial, offline("review", "reject", " Insufficient evidence ", CAPTURE))).status).toBe("success");
+    expect(rpc).toHaveBeenCalledWith("review_offline_capture", { eid: EVENT, p_capture_id: CAPTURE,
+      p_decision: "reject", p_reason: " Insufficient evidence " });
+  });
+  it.each(["", "  \n", "x".repeat(501)])("rejects invalid reason without a mutation", async why => {
+    setup();
+    expect((await reconcileOffline(initial, offline("loss", "lost", why))).status).toBe("error");
+    expect(rpc).not.toHaveBeenCalled();
+  });
+  it("records a loss only with actual durable count and null declaration", async () => {
+    const ack = { preparation_id: ASSIGNMENT, disposition: "lost", uploaded_count: 1, declared_count: null,
+      reason: "Device lost", accounted_at: confirmed, accounted_by: STAFF, replayed: false };
+    setup({}, [prep], [claim], { ...ack, uploaded_count: 9 });
+    expect((await reconcileOffline(initial, offline("loss", "lost", "Device lost"))).status).toBe("error");
+    setup({}, [prep], [claim], ack);
+    expect((await reconcileOffline(initial, offline("loss", "lost", "Device lost"))).status).toBe("success");
+    expect(rpc).toHaveBeenCalledWith("account_offline_preparation_loss", { eid: EVENT,
+      p_preparation_id: ASSIGNMENT, p_disposition: "lost", p_reason: "Device lost" });
+  });
+  it("validates replay audit and rejects conflicting decisions without mutation", async () => {
+    const reviewed = { ...claim, decision: "approve", reason: " exact ", receipt_id: RECEIPT,
+      receipt_outcome: "duplicate", reviewed_at: confirmed, reviewed_by: ORG };
+    const ack = { capture_id: CAPTURE, decision: "approve", reason: " exact ", receipt_id: RECEIPT,
+      receipt_outcome: "duplicate", reviewed_at: confirmed, reviewed_by: ORG, replayed: true };
+    setup({ reviewed_count: 1, unreviewed_count: 0 }, [prep], [reviewed], ack);
+    expect((await reconcileOffline(initial, offline("review", "approve", "exact", CAPTURE))).status).toBe("error");
+    expect(rpc).not.toHaveBeenCalledWith("review_offline_capture", expect.anything());
+    expect((await reconcileOffline(initial, offline("review", "approve", " exact ", CAPTURE))).status).toBe("success");
+    setup({ reviewed_count: 1, unreviewed_count: 0 }, [prep], [reviewed], { ...ack, reviewed_by: STAFF });
+    expect((await reconcileOffline(initial, offline("review", "approve", " exact ", CAPTURE))).status).toBe("error");
+  });
+  it("requires reload on response loss or Backend immutable conflict, without automatic retry", async () => {
+    setup();
+    rpc.mockImplementation(async (name: string) => {
+      if (name === "can_manage_org") return { data: true, error: null };
+      if (name === "get_event_offline_summary") return { data: summary, error: null };
+      if (name === "get_event_offline_preparations") return { data: [prep], error: null };
+      if (name === "get_event_offline_claims") return { data: [claim], error: null };
+      throw new Error("private transport detail");
+    });
+    const feedback = await reconcileOffline(initial, offline("review", "reject", "Reason", CAPTURE));
+    expect(feedback.reloadRequired).toBe(true);
+    expect(feedback.message).not.toContain("private transport");
+    expect(rpc.mock.calls.filter(([name]) => name === "review_offline_capture")).toHaveLength(1);
+    setup({}, [prep], [claim], null, { code: "23505", message: "private" });
+    expect((await reconcileOffline(initial, offline("review", "reject", "Reason", CAPTURE))).message).toContain("conflicting immutable");
+  });
+  it("requires seal and confirmation even with zero known sessions/claims, blocks old finalization form", async () => {
+    const zero = { preparation_count: 0, unaccounted_count: 0, claim_count: 0, unreviewed_count: 0 };
+    setup({ ...zero, sealed_at: null, sealed_by: null }, [], []);
+    expect((await reconcileOffline(initial, offline("confirm"))).status).toBe("error");
+    const finalize = form("finalize");
+    finalize.set("confirm_offline_finalize", "yes");
+    expect((await finalizeEvent(initial, finalize)).status).toBe("error");
+    setup({ ...zero, can_confirm: true }, [], [], { event_id: EVENT, confirmed_at: confirmed, confirmed_by: STAFF, replayed: false });
+    expect((await reconcileOffline(initial, offline("confirm"))).status).toBe("success");
+    setup({ ...zero, confirmed_at: confirmed, confirmed_by: STAFF, can_finalize: true }, [], [], {
+      event_id: EVENT, event_state: "FINALIZED", finalized_at: confirmed, finalized_by: STAFF, record_count: 2, replayed: false });
+    expect((await finalizeEvent(initial, form("finalize"))).status).toBe("error");
+    expect(rpc).not.toHaveBeenCalledWith("finalize_event", expect.anything());
+    expect((await finalizeEvent(initial, finalize)).status).toBe("success");
+    expect(rpc).toHaveBeenCalledWith("finalize_event", { eid: EVENT });
+  });
+  it("blocks finalization for malformed evidence despite a ready summary", async () => {
+    setup({ preparation_count: 0, unaccounted_count: 0, claim_count: 0, unreviewed_count: 0,
+      confirmed_at: confirmed, confirmed_by: STAFF, can_finalize: true }, [], [claim]);
+    const f = form("finalize"); f.set("confirm_offline_finalize", "yes");
+    expect((await finalizeEvent(initial, f)).status).toBe("error");
+    expect(rpc).not.toHaveBeenCalledWith("finalize_event", expect.anything());
+  });
 });

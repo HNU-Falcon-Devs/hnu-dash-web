@@ -7,6 +7,9 @@ import { getAuthState } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { formatManila, isUuid } from "../../validation";
 import { AssignEventStaffForm, RevokeEventStaffForm, OpenEventForm, EventLifecycleForm } from "./operation-forms";
+import { OfflinePanel } from "./offline-panel";
+import { validPolicy, type EventPolicy } from "./offline-contract";
+import { readOfflineEvidence } from "./offline-data";
 import { CoverageEvidencePanel } from "./coverage-refresh-button";
 import { FinalizedResults, parseFinalizedResults, type FinalizedResult } from "./finalized-results";
 
@@ -14,7 +17,7 @@ export const dynamic = "force-dynamic";
 
 const COVERAGE_PAGE_SIZE = 200;
 
-type Event = {
+type Event = EventPolicy & {
   id: string;
   title: string;
   organization_id: string;
@@ -135,12 +138,14 @@ export default async function EventOperationsPage({
     } else {
       managerAuthorized = true;
       const found = await client.from("events")
-        .select("id,title,organization_id,state,starts_at,ends_at,roster_frozen_at,opened_at")
+        .select("id,title,organization_id,state,starts_at,ends_at,roster_frozen_at,opened_at,offline_enabled,offline_upload_cutoff")
         .eq("organization_id", orgId).eq("id", eventId).maybeSingle();
       if (found.error) {
         errorMessage = "Could not load event operations. The Milestone 2 Backend may not be available yet.";
       } else if (!found.data || found.data.id !== eventId || found.data.organization_id !== orgId) {
         eventMissing = true;
+      } else if (!validPolicy(found.data)) {
+        errorMessage = "Could not verify the event offline policy. Reload operations.";
       } else {
         event = found.data as Event;
         const [list, staff, windows, roster] = await Promise.all([
@@ -313,6 +318,8 @@ export default async function EventOperationsPage({
     : null;
   const root = "/organizations/" + orgId + "/events/" + eventId + "/operations";
   const pageStart = coverageOffset + 1;
+  const offlineEvidence = managerAuthorized && !errorMessage && event?.offline_enabled && client
+    ? await readOfflineEvidence(client, event, query.preparations_page, query.claims_page) : null;
 
   return (
     <AppShell userEmail={auth.email} activePath="/events">
@@ -347,6 +354,10 @@ export default async function EventOperationsPage({
               </div>
             </div>
 
+            {!event.offline_enabled && <OfflinePanel key={event.id + ":" + event.state + ":" + event.offline_enabled} event={event}
+              organizationId={orgId} evidence={offlineEvidence} root={root} query={query}
+              coverageReady={coveragePrerequisitesMet && !coverageErrorMessage && coverageRows.length > 0} />}
+
             <Card>
               <CardHeader><CardTitle>Event activation</CardTitle></CardHeader>
               <CardContent className="space-y-3 text-sm">
@@ -358,7 +369,7 @@ export default async function EventOperationsPage({
                 <p>Configured checkpoints: {checkpoints.length} ({validWindows ? "valid schedule windows" : "not ready"})</p>
                 <p>Assigned Staff: {active.length}. There is no minimum Staff count required to open.</p>
                 {canOpen ? (
-                  <OpenEventForm organizationId={orgId} eventId={eventId} />
+                  <OpenEventForm key={event.id + ":open:" + event.offline_enabled} organizationId={orgId} eventId={eventId} offlineEnabled={event.offline_enabled} />
                 ) : event.state === "DRAFT" ? (
                   <p role="status" className="text-amber-700 dark:text-amber-300">
                     Activation is unavailable until the roster is frozen, nonempty, and checkpoints are valid.
@@ -393,7 +404,7 @@ export default async function EventOperationsPage({
                   <div className="space-y-1">
                     <CardTitle>Provisional checkpoint coverage</CardTitle>
                     <p className="text-sm text-slate-600 dark:text-slate-300">
-                      Read-only accepted online scan evidence against the frozen roster.
+                      {event.offline_enabled ? "Read-only accepted canonical receipts (online and individually approved offline) against the frozen roster." : "Read-only accepted online scan evidence against the frozen roster."}
                     </p>
                   </div>
                   <Badge variant="warning">Provisional</Badge>
@@ -433,7 +444,8 @@ export default async function EventOperationsPage({
                   </p>
                 ) : coveragePrerequisitesMet ? (
                   <CoverageEvidencePanel
-                    key={eventId + ":" + event.state + ":" + coveragePage}
+                    key={eventId + ":" + event.state + ":" + coveragePage + (event.offline_enabled ? ":offline:" + (offlineEvidence?.summary.reviewed_count ?? "unavailable") : "")}
+                    offlineEnabled={event.offline_enabled}
                     initialRows={coverageRows}
                     initialError={coverageErrorMessage}
                     refreshAction={refreshCoveragePage}
@@ -456,7 +468,11 @@ export default async function EventOperationsPage({
               </CardContent>
             </Card>
 
-            {event.state === "SYNCING" && (
+            {event.offline_enabled && <OfflinePanel key={event.id + ":" + event.state + ":" + event.offline_enabled} event={event}
+              organizationId={orgId} evidence={offlineEvidence} root={root} query={query}
+              coverageReady={coveragePrerequisitesMet && !coverageErrorMessage && coverageRows.length > 0} />}
+
+            {event.state === "SYNCING" && !event.offline_enabled && (
               <Card>
                 <CardHeader><CardTitle>Finalize prototype attendance</CardTitle></CardHeader>
                 <CardContent className="space-y-3 text-sm">

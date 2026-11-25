@@ -9,7 +9,7 @@ HNU DASH is a planned event attendance system for Holy Name University, starting
 3. The Backend checks uploaded scans and produces official attendance results.
 4. Authorized organizers review records and corrections, while students view their own attendance.
 
-**Status:** Event management and development-only online scan capture are implemented across the three repositories. Offline synchronization, official attendance calculation, and student self-view remain planned.
+**Status:** Event management and development-only online scan capture are implemented across the three repositories. Organizer prototype finalization and synthetic offline reconciliation are source-level Web capabilities; official attendance and student self-view remain planned. Combined offline acceptance and institutional authorization remain separate gates.
 
 ## What this app is for
 
@@ -26,7 +26,7 @@ Web will provide the screens for administrators, organization leaders, attendanc
 
 **M2.6 independent QA:** Isolated synthetic Web–Backend testing exercised real Web Server Actions for organization/event/checkpoint creation, roster freeze, Staff assignment, activation, membership creation/role/status changes, CSV import confirmation, and repeated-activation error handling. Backend authorization, scope, scan receipts, revocation, concurrency and replay checks also passed. **Part B is conditionally accepted for the tested online scope**, not full application or pilot acceptance. The actual browser CSV file picker and preview remain unverified ([Web #16](https://github.com/HNU-Falcon-Devs/hnu-dash-web/issues/16)); Google OAuth through the real provider also remains unverified ([Web #17](https://github.com/HNU-Falcon-Devs/hnu-dash-web/issues/17)). The actual Flutter app has not completed independent Mobile–Backend device QA ([Mobile #7](https://github.com/HNU-Falcon-Devs/hnu-dash-mobile/issues/7)).
 
-Read the [canonical M2.6 QA status](https://github.com/HNU-Falcon-Devs/hnu-dash-backend/blob/main/docs/qa/m2-6-integration-status.md) for covered boundaries and remaining acceptance checks (the new report is introduced by a separate Backend documentation PR). Web does not scan IDs or determine official attendance. Offline sync, finalized attendance and student self-view are not implemented.
+Read the [canonical M2.6 QA status](https://github.com/HNU-Falcon-Devs/hnu-dash-backend/blob/main/docs/qa/m2-6-integration-status.md) for covered boundaries and remaining acceptance checks (the new report is introduced by a separate Backend documentation PR). Web does not scan IDs or determine official attendance. The organizer Operations route consumes Backend-owned synthetic finalization and offline reconciliation contracts; see [Web architecture](docs/architecture.md). This is not approval of Mobile offline collection, real data, hosted deployment, official attendance, or student self-view.
 
 ## Developer setup
 
