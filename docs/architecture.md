@@ -2,12 +2,12 @@
 
 ## Purpose
 
-This repository owns only the HNU DASH Next.js frontend. The responsive shell now includes a Google OAuth authentication foundation; product management workflows remain deferred.
+This repository owns only the HNU DASH Next.js frontend. The frontend implements synthetic development workflows for Google OAuth, organization and membership management, events and checkpoints, roster import and freezing, Staff assignment, activation, organizer coverage, prototype finalization and offline reconciliation. Official attendance publication and student self-view remain deferred pending approved Backend contracts.
 
 ## Boundaries
 
 ```text
-HNU DASH Web  -> consumes a future backend contract
+HNU DASH Web  -> consumes approved Backend contracts
 HNU Backend  -> separate authoritative Supabase/PostgreSQL project
 HNU Mobile   -> separate Flutter attendance-collection project
 ```
@@ -18,9 +18,9 @@ Web owns frontend pages, reusable components, responsive layout, theme and desig
 
 ### Backend
 
-The separate backend project will own PostgreSQL schemas, migrations, row-level security, authorization, validation, mutation logic, synchronization, reconciliation, and authoritative records. This repository must not invent that contract.
+The separate backend project owns PostgreSQL schemas, migrations, row-level security, authorization, validation, mutation logic, synchronization, reconciliation, and authoritative records. This repository must not invent that contract.
 
-The backend repository owns the approved [Milestone 1 Web integration contract](https://github.com/HNU-Falcon-Devs/hnu-dash-backend/blob/main/docs/integration/milestone-1-web.md). A separate PR #2 proposal remains unapproved and must not be treated as deployed. Web must not independently invent operations or authorization rules.
+The backend repository owns the approved [Milestone 1 Web integration contract](https://github.com/HNU-Falcon-Devs/hnu-dash-backend/blob/main/docs/integration/milestone-1-web.md). Historical Backend PR #2 was closed and superseded; it is not an implementation or deployment contract. See the [canonical integration contracts](https://github.com/HNU-Falcon-Devs/hnu-dash-backend/tree/main/docs/integration) for subsequent milestones. Web must not independently invent operations or authorization rules.
 
 ### Mobile
 
@@ -33,4 +33,4 @@ The separate Flutter project owns QR attendance collection and offline mobile be
 
 ## M4.4 organizer offline reconciliation (synthetic only)
 
-The existing Operations route consumes the pinned [M4.1](https://github.com/HNU-Falcon-Devs/hnu-dash-backend/blob/7475aa4e64be57f36399bbaa2166a00700f0abb5/docs/integration/milestone-4-part-1-offline-evidence.md) and [M4.2](https://github.com/HNU-Falcon-Devs/hnu-dash-backend/blob/7475aa4e64be57f36399bbaa2166a00700f0abb5/docs/integration/milestone-4-part-2-offline-reconciliation.md) contracts. Online-only remains the default. DRAFT opt-in is irreversible; no upload before approved Mobile preparation or after the server cutoff. Known preparations are not devices or proof of completeness. The manager explicitly seals, accounts for losses, adjudicates individual claims with exact reasons, confirms reconciliation and separately finalizes. Manager reads and writes use the verified cookie-bound session, organization association, live authorization and bounded RPC pages; no direct claim tables. Reload after unconfirmed writes; identical immutable requests are replay-safe at Backend, conflicting decisions are not. No hosted migration or institutional authorization is implied. Combined acceptance is deferred to M4.5.
+The existing Operations route consumes the pinned [M4.1](https://github.com/HNU-Falcon-Devs/hnu-dash-backend/blob/7475aa4e64be57f36399bbaa2166a00700f0abb5/docs/integration/milestone-4-part-1-offline-evidence.md) and [M4.2](https://github.com/HNU-Falcon-Devs/hnu-dash-backend/blob/7475aa4e64be57f36399bbaa2166a00700f0abb5/docs/integration/milestone-4-part-2-offline-reconciliation.md) contracts. Online-only remains the default. DRAFT opt-in is irreversible; no upload before approved Mobile preparation or after the server cutoff. Known preparations are not devices or proof of completeness. The manager explicitly seals, accounts for losses, adjudicates individual claims with exact reasons, confirms reconciliation and separately finalizes. Manager reads and writes use the verified cookie-bound session, organization association, live authorization and bounded RPC pages; no direct claim tables. Reload after unconfirmed writes; identical immutable requests are replay-safe at Backend, conflicting decisions are not. No hosted migration or institutional authorization is implied. [M4.5A acceptance](https://github.com/HNU-Falcon-Devs/hnu-dash-backend/issues/19#issuecomment-7180150336) establishes bounded synthetic Web–authenticated Staff RPC–PostgreSQL integration across separate live pre-cutoff and historical post-cutoff fixtures. Physical offline Android QA remains outstanding ([Mobile #13](https://github.com/HNU-Falcon-Devs/hnu-dash-mobile/issues/13)); CSV browser and OAuth acceptance remain separately tracked in [Web #16](https://github.com/HNU-Falcon-Devs/hnu-dash-web/issues/16) and [Web #17](https://github.com/HNU-Falcon-Devs/hnu-dash-web/issues/17).
