@@ -9,14 +9,14 @@ HNU DASH is a planned event attendance system for Holy Name University, starting
 3. The Backend checks uploaded scans and produces official attendance results.
 4. Authorized organizers review records and corrections, while students view their own attendance.
 
-**Status:** Event management and development-only online scan capture are implemented across the three repositories. Organizer prototype finalization and synthetic offline reconciliation are source-level Web capabilities; official attendance and student self-view remain planned. Combined offline acceptance and institutional authorization remain separate gates.
+**Status (2026-11-26):** Synthetic event management, online collection, prototype finalization and offline capture/reconciliation are implemented across the three repositories. Web M4.4 is merged and [post-merge CI](https://github.com/HNU-Falcon-Devs/hnu-dash-web/actions/runs/45547176906) passed 360 tests. Combined offline browser/RPC/database QA ([Backend #19](https://github.com/HNU-Falcon-Devs/hnu-dash-backend/issues/19)), physical-device QA, institutional approval, official attendance and student self-view remain separate gates.
 
 ## What this app is for
 
 Web will provide the screens for administrators, organization leaders, attendance staff with review access, and students. It will not scan IDs or independently decide attendance.
 
 - [HNU DASH Backend](https://github.com/HNU-Falcon-Devs/hnu-dash-backend) manages the trusted records, permissions, and attendance results.
-- [HNU DASH Mobile](https://github.com/HNU-Falcon-Devs/hnu-dash-mobile) implements synthetic-data online QR capture; offline collection/sync is future work.
+- [HNU DASH Mobile](https://github.com/HNU-Falcon-Devs/hnu-dash-mobile) implements synthetic online and offline QR capture, encrypted queued evidence, explicit upload and Staff preparation completion. The current offline device workflow has not been physically accepted.
 
 ## Current status
 
@@ -24,9 +24,9 @@ Web will provide the screens for administrators, organization leaders, attendanc
 
 **Backend status:** Read-only checks on 2026-11-17 found the M2.1 Staff/activation and M2.3 online scan-ingestion migrations and expected RPC signatures in hosted `hnu-dash-dev`. Earlier warnings that these migrations might be missing are outdated. This does not establish hosted integration or production readiness.
 
-**M2.6 independent QA:** Isolated synthetic Web–Backend testing exercised real Web Server Actions for organization/event/checkpoint creation, roster freeze, Staff assignment, activation, membership creation/role/status changes, CSV import confirmation, and repeated-activation error handling. Backend authorization, scope, scan receipts, revocation, concurrency and replay checks also passed. **Part B is conditionally accepted for the tested online scope**, not full application or pilot acceptance. The actual browser CSV file picker and preview remain unverified ([Web #16](https://github.com/HNU-Falcon-Devs/hnu-dash-web/issues/16)); Google OAuth through the real provider also remains unverified ([Web #17](https://github.com/HNU-Falcon-Devs/hnu-dash-web/issues/17)). The actual Flutter app has not completed independent Mobile–Backend device QA ([Mobile #7](https://github.com/HNU-Falcon-Devs/hnu-dash-mobile/issues/7)).
+**Historical bounded QA:** M2.6 Part B validated actual synthetic Web Server Actions and Backend authorization. [Mobile #7](https://github.com/HNU-Falcon-Devs/hnu-dash-mobile/issues/7#issuecomment-7110814051) subsequently accepted bounded synthetic online Android integration on its recorded revision; [Web #24](https://github.com/HNU-Falcon-Devs/hnu-dash-web/issues/24#issuecomment-7135489451) accepted the online browser/RPC lifecycle. The actual CSV picker/preview remains open ([Web #16](https://github.com/HNU-Falcon-Devs/hnu-dash-web/issues/16)); real Google OAuth has an owner-observed HNU happy path but remaining provider/negative-path acceptance ([Web #17](https://github.com/HNU-Falcon-Devs/hnu-dash-web/issues/17)). Device security gaps remain [Mobile #13](https://github.com/HNU-Falcon-Devs/hnu-dash-mobile/issues/13). None of these historical results establish current offline integration or pilot readiness.
 
-Read the [canonical M2.6 QA status](https://github.com/HNU-Falcon-Devs/hnu-dash-backend/blob/main/docs/qa/m2-6-integration-status.md) for covered boundaries and remaining acceptance checks (the new report is introduced by a separate Backend documentation PR). Web does not scan IDs or determine official attendance. The organizer Operations route consumes Backend-owned synthetic finalization and offline reconciliation contracts; see [Web architecture](docs/architecture.md). This is not approval of Mobile offline collection, real data, hosted deployment, official attendance, or student self-view.
+Read the [historical M2.6 QA status](https://github.com/HNU-Falcon-Devs/hnu-dash-backend/blob/main/docs/qa/m2-6-integration-status.md) and linked issue adjudications for boundaries. Web does not scan IDs or determine official attendance. The organizer Operations route consumes Backend-owned synthetic finalization and offline reconciliation contracts; see [Web architecture](docs/architecture.md). [Backend #19](https://github.com/HNU-Falcon-Devs/hnu-dash-backend/issues/19) tracks new offline integration evidence; no real data, hosted deployment or institutional acceptance is implied.
 
 ## Developer setup
 
