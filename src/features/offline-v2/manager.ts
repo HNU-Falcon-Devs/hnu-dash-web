@@ -51,7 +51,7 @@ export async function readSnapshot(c:FixtureContext,t:Transport,offsets:PageOffs
   // Separate Backend calls are not an atomic snapshot. A changed summary
   // invalidates the view; even equal summaries cannot prove identical winners.
   const latest=parseSummary(await read("get_event_offline_summary_v2"),c.event_id);
-  if (!latest||Object.keys(s).some(k=>(s as unknown as Row)[k]!==(latest as unknown as Row)[k])) return null;
+  if (!latest||!await t.verify(c)||Object.keys(s).some(k=>(s as unknown as Row)[k]!==(latest as unknown as Row)[k])) return null;
   return {summary:latest,preparations,claims,coverage,results,offsets:{...offsets}};
 }
 const optionalReason=(why:string)=>why===""?null:reason(why);
@@ -204,6 +204,12 @@ export function createManager(c:FixtureContext,t:Transport,session:SessionState)
     current:()=>snapshot,
     async submit(operation:Operation,confirmed:boolean,now=new Date().toISOString()):Promise<string> {
       if(busy||session.pending||session.lost||!confirmed||!instant(now)||!snapshot) return "Action blocked. Confirm and refresh evidence; unresolved requests cannot be replaced.";
+      const previous=snapshot;
+      busy=true;snapshot=null;
+      try {
+        snapshot=await readSnapshot(scope,t,previous.offsets);
+        if(!snapshot||JSON.stringify(previous)!==JSON.stringify(snapshot)) return "Evidence changed or became unavailable. Review refreshed evidence before confirming again.";
+      } catch {return unavailable;} finally {busy=false;}
       // Bind individual mutation targets to the current scoped page, not caller assertions.
       if(operation.kind==="loss") {
         const row=snapshot.preparations.find(r=>r.preparation_id===operation.preparation.preparation_id&&r.preparation_id!==null);
