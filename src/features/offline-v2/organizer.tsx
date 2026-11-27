@@ -22,7 +22,7 @@ function ExplicitForm({label,children,onSubmit,disabled=false,invalid=false}:{
     setConfirmed(false);onSubmit(data);
   }
   return <form aria-label={label} onSubmit={submit} onChange={e=>{
-    if((e.target as HTMLInputElement).name!=="explicit") setConfirmed(false);
+    if(!(e.target instanceof HTMLInputElement)||e.target.name!=="explicit") setConfirmed(false);
   }} className="space-y-3 rounded border p-3">
     <fieldset disabled={disabled} className="space-y-3">
       <legend className="font-medium">{label}</legend>
