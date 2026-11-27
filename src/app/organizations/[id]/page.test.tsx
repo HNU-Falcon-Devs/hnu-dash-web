@@ -34,7 +34,7 @@ beforeEach(() => {
     error: null,
   });
   memberOrder.mockResolvedValue({
-    data: [{ organization_id: ORG, user_id: USER, role: "leader", active: false }],
+    data: [{ organization_id: ORG, user_id: USER, role: "leader", active: false, revision: "1" }],
     error: null,
   });
   rpc.mockResolvedValue({ data: false, error: null });
@@ -51,7 +51,7 @@ describe("organization details and RLS-scoped members", () => {
     expect(orgSelect).toHaveBeenCalledWith("id,name,slug,active");
     expect(orgEq).toHaveBeenCalledWith("id", ORG);
     expect(from).toHaveBeenCalledWith("organization_memberships");
-    expect(memberSelect).toHaveBeenCalledWith("organization_id,user_id,role,active");
+    expect(memberSelect).toHaveBeenCalledWith("organization_id,user_id,role,active,revision::text");
     expect(memberEq).toHaveBeenCalledWith("organization_id", ORG);
     expect(memberOrder).toHaveBeenCalledWith("user_id", { ascending: true });
     expect(rpc).toHaveBeenCalledWith("is_platform_admin");
@@ -71,11 +71,11 @@ describe("organization details and RLS-scoped members", () => {
     rpc.mockResolvedValue({ data: true, error: null });
     await renderPage();
     const assignForm = screen.getByRole("form", { name: "Assign organization member" });
-    expect(within(assignForm).getByRole("textbox", { name: "Existing Auth user UUID" })).toBeRequired();
-    expect(within(assignForm).getByText(/UUID alone does not prove/)).toBeInTheDocument();
-    expect(within(assignForm).getByRole("button", { name: "Assign member" })).toBeInTheDocument();
+    expect(within(assignForm).getByRole("textbox", { name: "HNU email address" })).toBeRequired();
+    expect(within(assignForm).getByText(/Backend verifies eligibility/)).toBeInTheDocument();
+    expect(within(assignForm).getByRole("button", { name: "Review assignment" })).toBeInTheDocument();
     const editForm = screen.getByRole("form", { name: `Edit membership ${USER}` });
-    expect(within(editForm).getByRole("button", { name: "Save changes" })).toBeInTheDocument();
+    expect(within(editForm).getByRole("button", { name: "Review changes" })).toBeInTheDocument();
     expect(within(editForm).getByLabelText("Role")).toHaveValue("leader");
     expect(within(editForm).getByLabelText("Status")).toHaveValue("false");
   });
