@@ -214,12 +214,14 @@ export function createManager(c:FixtureContext,t:Transport,session:SessionState)
       } catch {return unavailable;} finally {busy=false;}
       // Bind individual mutation targets to the current scoped page, not caller assertions.
       if(operation.kind==="loss") {
-        const row=snapshot.preparations.find(r=>r.preparation_id===operation.preparation.preparation_id&&r.preparation_id!==null);
+        const target=operation.preparation.preparation_id;
+        const row=snapshot.preparations.find(r=>r.preparation_id===target&&r.preparation_id!==null);
         if(!row) return unavailable;
         operation={...operation,preparation:row};
       }
       if(operation.kind==="review") {
-        const row=snapshot.claims.find(r=>r.capture_id===operation.claim.capture_id);
+        const target=operation.claim.capture_id;
+        const row=snapshot.claims.find(r=>r.capture_id===target);
         if(!row) return unavailable;
         operation={...operation,claim:row};
       }
