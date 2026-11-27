@@ -7,7 +7,7 @@ import { ACTOR, EVENT, PREP, CAPTURE, context, openSummary, closedAt, cutoff, sy
 
 function harness(c:FixtureContext=context,initial:Row=openSummary) {
   let summary=initial;
-  let preparations:unknown[]=[];
+  let preparations:unknown[]=[initial.completed_preparations===1?{...prep,uploaded_count:0,accounting:{preparation_id:PREP,disposition:"completed",uploaded_count:0,declared_count:0,reason:null,accounted_at:cutoff,accounted_by:ACTOR}}:{...prep,uploaded_count:0}];
   let claims:unknown[]=[];
   let results:unknown[]=[];
   const mutate=vi.fn<(name:string,args:Row)=>Promise<{data:unknown;error:{code?:string}|null}>>();
@@ -95,7 +95,8 @@ describe("fixture-only manager interactions",()=>{
   });
   it("rejects early seal while incomplete, requires unused acknowledgement, and uses actual loss counts",async()=>{
     const h=harness(context,{...syncing,unused_assignments:1});
-    h.setPreparations([prep]);await h.manager.refresh();
+    const unused={...prep,assignment_id:"99999999-9999-4999-8999-999999999999",preparation_id:null,issued_at:null,uploaded_count:null};
+    h.setPreparations([prep,unused]);await h.manager.refresh();
     expect(await h.manager.submit({kind:"seal",acknowledge:true,why:"Seal"},true,late)).toMatch(/invalid/i);
     expect(await h.manager.submit({kind:"seal",acknowledge:false,why:"Seal"},true,"2027-01-03T00:00:00Z")).toMatch(/invalid/i);
     h.mutate.mockImplementationOnce(async()=>{h.setSummary({...syncing,unused_assignments:1,sealed:true});
@@ -105,7 +106,7 @@ describe("fixture-only manager interactions",()=>{
     h.mutate.mockImplementationOnce(async()=>{
       const accounting={preparation_id:PREP,disposition:"lost",uploaded_count:1,declared_count:null,reason:"Missing device",
         accounted_at:cutoff,accounted_by:ACTOR};
-      h.setPreparations([{...prep,accounting}]);h.setSummary({...syncing,unused_assignments:1,sealed:true,
+      h.setPreparations([{...prep,accounting},unused]);h.setSummary({...syncing,unused_assignments:1,sealed:true,
         accounted_preparations:1,loss_accounted_preparations:1,evidence_ready:true});
       return {data:{...accounting,policy_version:2,replayed:false},error:null};
     });
