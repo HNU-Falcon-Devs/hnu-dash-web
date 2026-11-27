@@ -44,6 +44,8 @@ export async function readSnapshot(c:FixtureContext,t:Transport,offsets:PageOffs
     (a,b)=>compareText(a.student_id,b.student_id)||a.checkpoint_sort_order-b.checkpoint_sort_order||compareText(a.checkpoint_id,b.checkpoint_id));
   const results=parsePage(f,r=>parseResult(r,c,s),r=>r.student_id,(a,b)=>compareText(a.student_id,b.student_id));
   if (!preparations||!claims||!coverage||!results||!await t.verify(c)||
+    preparations.length!==Math.max(0,Math.min(PAGE_SIZE,s.known_preparations+s.unused_assignments-offsets.preparations))||
+    (!offsets.exceptionsOnly&&claims.length!==Math.max(0,Math.min(PAGE_SIZE,s.submitted_claims-offsets.claims)))||
     claims.some(r=>offsets.exceptionsOnly&&r.initial_disposition!=="exception"||
       s.event_state!=="FINALIZED"&&r.final_receipt_id!==null||
       s.event_state==="FINALIZED"&&(r.disposition==="exception"||r.provisional_winner!==(r.final_receipt_id!==null)))||
