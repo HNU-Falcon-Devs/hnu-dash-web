@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { describe, expect, it, vi } from "vitest";
 import { createManager, fixtureSession, firstPage, type Operation, type Transport } from "./manager";
 import { FixtureOrganizer } from "./organizer";
-import { type FixtureContext, type Row, type Summary } from "./contract";
+import { type FixtureContext, type Row } from "./contract";
 import { ACTOR, EVENT, PREP, CAPTURE, context, openSummary, closedAt, cutoff, syncing, ready, prep, exception } from "./test-fixtures";
 
 function harness(c:FixtureContext=context,initial:Row=openSummary) {
@@ -175,7 +175,7 @@ describe("fixture-only manager interactions",()=>{
     expect(h.mutate).not.toHaveBeenCalled();
   });
   it("one explicit finalization dispatch with pending feedback and no optimistic result",async()=>{
-    const h=harness(context,{...ready,reconciliation_confirmed:true,can_finalize:true} satisfies Summary);
+    const h=harness(context,{...ready,reconciliation_confirmed:true,can_finalize:true});
     await h.manager.refresh();
     let resolve!:(v:{data:unknown;error:{code?:string}|null})=>void;
     h.mutate.mockImplementationOnce(()=>new Promise(done=>{resolve=done;}));
