@@ -11,13 +11,13 @@ const field="w-full rounded border border-slate-400 bg-transparent p-2";
 const value=(data:FormData,key:string)=>String(data.get(key)??"");
 const checked=(data:FormData,key:string)=>data.get(key)==="on";
 
-function ExplicitForm({label,children,onSubmit,disabled=false}:{
-  label:string;children?:ReactNode;onSubmit:(data:FormData)=>void;disabled?:boolean
+function ExplicitForm({label,children,onSubmit,disabled=false,invalid=false}:{
+  label:string;children?:ReactNode;onSubmit:(data:FormData)=>void;disabled?:boolean;invalid?:boolean
 }) {
   const [confirmed,setConfirmed]=useState(false);
   function submit(e:FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if(disabled||!confirmed) return;
+    if(disabled||invalid||!confirmed) return;
     const data=new FormData(e.currentTarget);
     setConfirmed(false);onSubmit(data);
   }
@@ -29,7 +29,7 @@ function ExplicitForm({label,children,onSubmit,disabled=false}:{
       {children}
       <label className="flex gap-2"><input name="explicit" type="checkbox" required checked={confirmed}
         onChange={e=>setConfirmed(e.target.checked)}/> I explicitly confirm this action.</label>
-      <Button type="submit" size="sm" disabled={!confirmed||disabled}>{label}</Button>
+      <Button type="submit" size="sm" disabled={!confirmed||disabled||invalid}>{label}</Button>
     </fieldset>
   </form>;
 }
@@ -50,7 +50,7 @@ function CloseForm({context,submit,disabled}:{context:FixtureContext;submit:(o:O
   function update(i:number,key:"opens_at"|"closes_at",v:string) {
     setWindows(old=>old.map((w,j)=>i===j?{...w,[key]:v}:w));
   }
-  return <ExplicitForm label="Close event manually" disabled={disabled||!normalized} onSubmit={data=>{
+  return <ExplicitForm label="Close event manually" disabled={disabled} invalid={!normalized} onSubmit={data=>{
     submit({kind:"close",windows,overlap:checked(data,"overlap"),earlyAcknowledged:checked(data,"early"),why:value(data,"why")});
   }}>
     <p>Original windows are immutable. Independently extend the start earlier or the end later. Each interval is half-open [start, end). Backend closure uses server time.</p>
@@ -84,7 +84,7 @@ function ReviewForm({row,submit,disabled}:{row:Claim;submit:(o:Operation)=>void;
   const [decision,setDecision]=useState("");
   const [captureAt,setCaptureAt]=useState("");
   const allowed=decision==="reject"||decision==="approve"&&withinBounds(row,captureAt);
-  return <ExplicitForm label={"Review exception "+row.capture_id} disabled={disabled} onSubmit={data=>{
+  return <ExplicitForm label={"Review exception "+row.capture_id} disabled={disabled} invalid={!allowed} onSubmit={data=>{
     if(allowed) submit({kind:"review",claim:row,decision,why:value(data,"why"),category:value(data,"category"),
       reference:value(data,"reference"),captureAt});
   }}>
@@ -121,7 +121,7 @@ export function FixtureOrganizer({manager}:{manager:Manager}) {
 }
 function Organizer({manager}:{manager:Manager}) {
   const [view,setView]=useState(()=>manager.current());
-  const [offsets,setOffsets]=useState<PageOffsets>(firstPage);
+  const [offsets,setOffsets]=useState<PageOffsets>(()=>manager.current()?.offsets??firstPage);
   const [busy,setBusy]=useState(false);
   const [message,setMessage]=useState("");
   const locked=useRef(false);
