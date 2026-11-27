@@ -154,8 +154,8 @@ function Organizer({manager}:{manager:Manager}) {
         onSubmit={()=>{setOffsets(firstPage);void run(()=>manager.retry(true));}}>
         <p role="alert">Unconfirmed request retained. No replacement request or new operation is allowed.</p>
       </ExplicitForm>}
-      {manager.session.receipt&&manager.session.receipt.closed_at!==undefined&&
-        <p>Historical closure receipt: {String(manager.session.receipt.closed_at)}; initial deadline: {String(manager.session.receipt.initial_sync_deadline)}. Current state comes from refreshed summary.</p>}
+      {manager.session.closureReceipt&&manager.session.closureReceipt.closed_at!==undefined&&
+        <p>Historical closure receipt: {String(manager.session.closureReceipt.closed_at)}; initial deadline: {String(manager.session.closureReceipt.initial_sync_deadline)}. Current state comes from refreshed summary.</p>}
     </CardContent></Card>
     {s&&view&&<>
       <Card><CardHeader><CardTitle>Organizer lifecycle</CardTitle></CardHeader><CardContent className="space-y-3">
