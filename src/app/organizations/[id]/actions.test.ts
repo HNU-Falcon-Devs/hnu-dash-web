@@ -1,156 +1,78 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { assignMembership, updateMembership, type MembershipActionState } from "./actions";
+import { assignMembership, prepareMembership, updateMembership } from "./actions";
 import { getAuthState } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { revalidatePath } from "next/cache";
-
+import { type Intent, type UpdateInput } from "./membership-contract";
 vi.mock("@/lib/auth", () => ({ getAuthState: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
-vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-
 const ORG = "11111111-1111-4111-8111-111111111111";
 const USER = "22222222-2222-4222-8222-222222222222";
-const idle: MembershipActionState = { status: "idle", message: "" };
+const REQUEST = "33333333-3333-4333-8333-333333333333";
+const epoch = 1800000000;
+const input = { organizationId: ORG, email: "test@hnu.edu.ph", role: "staff" as const };
+const intent: Intent = { ...input, requestId: REQUEST, token: ["v1","synthetic",USER,REQUEST,epoch,epoch+300,epoch+2592000,"a".repeat(64)].join("."), executeBefore: new Date((epoch+300)*1000).toISOString().replace(".000",""), replayBefore: new Date((epoch+2592000)*1000).toISOString().replace(".000","") };
+const change: UpdateInput = { organizationId: ORG, userId: USER, role: "leader", active: false, revision: "9007199254740993" };
 const rpc = vi.fn();
-const insert = vi.fn();
-const updateResult = vi.fn();
-const selectUpdated = vi.fn(() => ({ maybeSingle: updateResult }));
-const userEq = vi.fn(() => ({ select: selectUpdated }));
-const orgEq = vi.fn(() => ({ eq: userEq }));
-const update = vi.fn(() => ({ eq: orgEq }));
-const from = vi.fn(() => ({ insert, update }));
-
-function fields(role = "staff", userId = USER, organizationId = ORG, active?: string) {
-  const values = new FormData();
-  values.set("organization_id", organizationId);
-  values.set("user_id", userId);
-  values.set("role", role);
-  if (active !== undefined) values.set("active", active);
-  return values;
-}
-
+const from = vi.fn();
+const envelope = (status: string, membership: unknown = null, replayed = false, retry_after_seconds: number | null = null) => ({status, membership, replayed, retry_after_seconds});
+const snapshot = { organization_id: ORG, user_id: USER, role: "staff", active: true, revision: "1" };
+const response = (data: unknown) => { rpc.mockResolvedValueOnce({data:true,error:null}).mockResolvedValueOnce({data,error:null}); };
 beforeEach(() => {
-  vi.clearAllMocks();
-  vi.mocked(getAuthState).mockResolvedValue({ status: "authenticated", email: "admin@hnu.edu.ph" });
-  vi.mocked(createClient).mockResolvedValue({ rpc, from } as unknown as Awaited<ReturnType<typeof createClient>>);
-  rpc.mockResolvedValue({ data: true, error: null });
-  insert.mockResolvedValue({ error: null });
-  updateResult.mockResolvedValue({ data: { user_id: USER }, error: null });
+  vi.resetAllMocks();
+  vi.mocked(getAuthState).mockResolvedValue({status:"authenticated",email:"admin@hnu.edu.ph"});
+  vi.mocked(createClient).mockResolvedValue({rpc,from} as unknown as Awaited<ReturnType<typeof createClient>>);
 });
-
-describe("assignMembership", () => {
-  it("inserts only approved fields and refreshes after successful assignment", async () => {
-    const result = await assignMembership(idle, fields("leader"));
-    expect(result.status).toBe("success");
-    expect(rpc).toHaveBeenCalledWith("is_platform_admin");
-    expect(from).toHaveBeenCalledWith("organization_memberships");
-    expect(insert).toHaveBeenCalledWith({
-      organization_id: ORG, user_id: USER, role: "leader",
-    });
-    expect(revalidatePath).toHaveBeenCalledWith(`/organizations/${ORG}`);
+describe("authoritative membership actions", () => {
+  it("prepares through RPC, with exact payload and no direct write", async () => {
+    response({status:"intent_issued",request_id:REQUEST,intent_token:intent.token,execute_before:intent.executeBefore,replay_before:intent.replayBefore});
+    expect(await prepareMembership(input)).toEqual({status:"intent_issued",intent});
+    expect(rpc).toHaveBeenCalledWith("prepare_org_member_assignment",{p_organization_id:ORG,p_email:input.email,p_role:"staff"});
+    expect(from).not.toHaveBeenCalled();
   });
-
-  it("rejects malformed UUIDs and unapproved roles before any query", async () => {
-    expect((await assignMembership(idle, fields("staff", "not-a-uuid"))).status).toBe("error");
-    expect((await assignMembership(idle, fields("staff", USER, "bad-org"))).status).toBe("error");
-    expect((await assignMembership(idle, fields("platform_admin"))).status).toBe("error");
+  it("reuses immutable intent and interprets historical success", async () => {
+    response(envelope("assigned",snapshot,true));
+    expect(await assignMembership(intent)).toEqual({status:"assigned",replayed:true,retryAfter:null});
+    expect(rpc).toHaveBeenCalledWith("assign_verified_org_member",{p_organization_id:ORG,p_email:input.email,p_role:"staff",p_request_id:REQUEST,p_intent_token:intent.token});
+    expect(from).not.toHaveBeenCalled();
+  });
+  it.each(["account_unavailable","organization_unavailable","invalid_input","request_mismatch","request_expired","busy"] as const)("preserves generic assignment status %s",async status=>{
+    response(envelope(status)); expect((await assignMembership(intent)).status).toBe(status);
+  });
+  it("preserves duplicate conflict and rate limiting",async()=>{
+    response(envelope("already_member",snapshot));expect((await assignMembership(intent)).status).toBe("already_member");
+    response(envelope("rate_limited",null,false,12));expect(await assignMembership(intent)).toEqual({status:"rate_limited",replayed:false,retryAfter:12});
+  });
+  it("rejects malformed successes and leaks no raw error",async()=>{
+    response(envelope("assigned",null));expect(await assignMembership(intent)).toEqual({status:"unknown"});
+    rpc.mockResolvedValueOnce({data:true,error:null}).mockResolvedValueOnce({data:null,error:{message:"private token"}});
+    expect(await assignMembership(intent)).toEqual({status:"unknown"});
+  });
+  it.each(["signed-out","denied","error"] as const)("blocks %s",async status=>{
+    vi.mocked(getAuthState).mockResolvedValue({status});
+    expect((await prepareMembership(input)).status).toBe("unavailable");
+    expect((await assignMembership(intent)).status).toBe("unknown");
+    expect((await updateMembership(change)).status).toBe("unknown");
     expect(createClient).not.toHaveBeenCalled();
-    expect(insert).not.toHaveBeenCalled();
   });
-
-  it.each(["signed-out", "denied", "error"] as const)("blocks %s sessions", async (status) => {
-    vi.mocked(getAuthState).mockResolvedValue({ status });
-    const result = await assignMembership(idle, fields());
-    expect(result.status).toBe("error");
-    expect(createClient).not.toHaveBeenCalled();
-    expect(insert).not.toHaveBeenCalled();
+  it("blocks nonadmin and invalid input",async()=>{
+    rpc.mockResolvedValueOnce({data:false,error:null});
+    expect((await prepareMembership(input)).status).toBe("unavailable");
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect((await prepareMembership({...input,email:"not-hnu@example.com"})).status).toBe("invalid_input");
+    expect((await updateMembership({...change,revision:"0"})).status).toBe("unknown");
+    expect(rpc).toHaveBeenCalledTimes(1);
   });
-
-  it("blocks verified non-admins and failed admin RPC checks", async () => {
-    rpc.mockResolvedValueOnce({ data: false, error: null });
-    expect((await assignMembership(idle, fields())).message).toContain("Only platform administrators");
-    rpc.mockResolvedValueOnce({ data: null, error: { message: "connection failed" } });
-    expect((await assignMembership(idle, fields())).message).toContain("Could not verify");
-    expect(insert).not.toHaveBeenCalled();
+  it("sends lossless revision and both keys, allows pure deactivation",async()=>{
+    response(envelope("updated",{...snapshot,role:"leader",active:false,revision:"9007199254740994"}));
+    expect((await updateMembership(change)).status).toBe("updated");
+    expect(rpc).toHaveBeenCalledWith("update_org_member",{p_organization_id:ORG,p_user_id:USER,p_role:"leader",p_active:false,p_expected_revision:"9007199254740993"});
+    expect(from).not.toHaveBeenCalled();
   });
-
-  it("reports duplicate composite-key memberships without upserting", async () => {
-    insert.mockResolvedValue({ error: { code: "23505", message: "duplicate key" } });
-    const result = await assignMembership(idle, fields());
-    expect(result.status).toBe("error");
-    expect(result.message).toContain("already a member");
-    expect(revalidatePath).not.toHaveBeenCalled();
-  });
-
-  it("reports a missing user or organization without claiming verification", async () => {
-    insert.mockResolvedValue({ error: { code: "23503" } });
-    const result = await assignMembership(idle, fields());
-    expect(result.message).toContain("was not found");
-    expect(revalidatePath).not.toHaveBeenCalled();
-  });
-
-  it("fails closed on RLS/permission errors without leaking SQL messages", async () => {
-    insert.mockResolvedValue({ error: { code: "42501", message: "sensitive SQL details" } });
-    const result = await assignMembership(idle, fields());
-    expect(result.status).toBe("error");
-    expect(result.message).not.toContain("sensitive SQL details");
-    expect(revalidatePath).not.toHaveBeenCalled();
-  });
-});
-
-describe("updateMembership", () => {
-  it("updates only role and active, scoped to both membership UUIDs", async () => {
-    const result = await updateMembership(idle, fields("leader", USER, ORG, "false"));
-    expect(result.status).toBe("success");
-    expect(rpc).toHaveBeenCalledWith("is_platform_admin");
-    expect(update).toHaveBeenCalledWith({ role: "leader", active: false });
-    expect(orgEq).toHaveBeenCalledWith("organization_id", ORG);
-    expect(userEq).toHaveBeenCalledWith("user_id", USER);
-    expect(selectUpdated).toHaveBeenCalledWith("user_id");
-    expect(updateResult).toHaveBeenCalledOnce();
-    expect(revalidatePath).toHaveBeenCalledWith(`/organizations/${ORG}`);
-  });
-
-  it("reactivates a membership", async () => {
-    await updateMembership(idle, fields("staff", USER, ORG, "true"));
-    expect(update).toHaveBeenCalledWith({ role: "staff", active: true });
-  });
-
-  it("rejects invalid IDs, roles and statuses before database access", async () => {
-    for (const values of [
-      fields("leader", USER, "invalid", "true"),
-      fields("leader", "bad-uuid", ORG, "true"),
-      fields("admin", USER, ORG, "true"),
-      fields("staff", USER, ORG, "on"),
-      fields("staff", USER, ORG),
-    ]) {
-      expect((await updateMembership(idle, values)).status).toBe("error");
-    }
-    expect(createClient).not.toHaveBeenCalled();
-    expect(update).not.toHaveBeenCalled();
-  });
-
-  it("does not allow signed-out or non-admin users to update roles", async () => {
-    vi.mocked(getAuthState).mockResolvedValueOnce({ status: "denied" });
-    expect((await updateMembership(idle, fields("leader", USER, ORG, "true"))).status).toBe("error");
-    rpc.mockResolvedValue({ data: false, error: null });
-    expect((await updateMembership(idle, fields("leader", USER, ORG, "true"))).status).toBe("error");
-    expect(update).not.toHaveBeenCalled();
-  });
-
-  it("treats a zero-row update as missing or inaccessible, not success", async () => {
-    updateResult.mockResolvedValue({ data: null, error: null });
-    const result = await updateMembership(idle, fields("staff", USER, ORG, "false"));
-    expect(result.status).toBe("error");
-    expect(result.message).toContain("no longer exists");
-    expect(revalidatePath).not.toHaveBeenCalled();
-  });
-
-  it("handles failed updates without exposing database internals", async () => {
-    updateResult.mockResolvedValue({ data: null, error: { code: "42501", message: "private" } });
-    const result = await updateMembership(idle, fields("staff", USER, ORG, "false"));
-    expect(result.status).toBe("error");
-    expect(result.message).not.toContain("private");
-    expect(revalidatePath).not.toHaveBeenCalled();
+  it("reports state conflict and malformed/unknown update without retry",async()=>{
+    response(envelope("state_conflict",snapshot));
+    expect((await updateMembership(change)).status).toBe("state_conflict");
+    response(envelope("updated",snapshot));
+    expect((await updateMembership(change)).status).toBe("unknown");
+    expect(rpc).toHaveBeenCalledTimes(4);
   });
 });

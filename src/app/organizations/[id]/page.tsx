@@ -7,6 +7,7 @@ import { getAuthState } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { AssignMembershipForm, MembershipEditor } from "./membership-forms";
 import { isUuid } from "./validation";
+import { isRevision } from "./membership-contract";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,7 @@ type Membership = {
   user_id: string;
   role: "leader" | "staff";
   active: boolean;
+  revision: unknown;
 };
 
 export default async function OrganizationDetailsPage({
@@ -57,7 +59,7 @@ export default async function OrganizationDetailsPage({
 
       const [members, admin] = await Promise.all([
         supabase.from("organization_memberships")
-          .select("organization_id,user_id,role,active")
+          .select("organization_id,user_id,role,active,revision::text")
           .eq("organization_id", id)
           .order("user_id", { ascending: true }),
         supabase.rpc("is_platform_admin"),
@@ -122,8 +124,8 @@ export default async function OrganizationDetailsPage({
                               {membership.active ? "Active" : "Inactive"}
                             </Badge>
                           </div>
-                          {isAdmin && <MembershipEditor organizationId={id} userId={membership.user_id}
-                            role={membership.role} active={membership.active} />}
+                          {isAdmin && (isRevision(membership.revision) ? <MembershipEditor organizationId={id} userId={membership.user_id}
+                            role={membership.role} active={membership.active} revision={membership.revision} /> : <p role="alert">Membership revision unavailable. Editing is disabled.</p>)}
                         </li>
                       ))}
                     </ul>
@@ -133,7 +135,7 @@ export default async function OrganizationDetailsPage({
               {isAdmin && (
                 <Card>
                   <CardHeader><CardTitle>Assign member</CardTitle></CardHeader>
-                  <CardContent><AssignMembershipForm organizationId={id} /></CardContent>
+                  <CardContent><AssignMembershipForm key={id} organizationId={id} organizationName={organization.name} /></CardContent>
                 </Card>
               )}
             </div>
