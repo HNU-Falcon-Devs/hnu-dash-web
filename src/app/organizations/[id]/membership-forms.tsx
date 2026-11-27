@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { assignMembership, prepareMembership, updateMembership } from "./actions";
@@ -148,6 +148,7 @@ export function MembershipEditor({ organizationId, userId, role, active, revisio
   const [success, setSuccess] = useState(false);
   const [pending, setPending] = useState(false);
   const [needsRefresh, setNeedsRefresh] = useState(false);
+  const [refreshing, startRefresh] = useTransition();
   const inFlight = useRef(false);
   const current = choice?.revision === revision ? choice : { role, active, revision };
   async function confirm() {
@@ -170,10 +171,10 @@ export function MembershipEditor({ organizationId, userId, role, active, revisio
   return (
     <form aria-label={`Edit membership ${userId}`} className="flex flex-wrap items-end gap-3" onSubmit={event => {
       event.preventDefault();
-      if (pending || inFlight.current || needsRefresh || review || !isRevision(revision)) return;
+      if (pending || inFlight.current || needsRefresh || refreshing || review || !isRevision(revision)) return;
       setReview({ organizationId, userId, role: current.role, active: current.active, revision }); setMessage(""); setSuccess(false);
     }}>
-      <fieldset disabled={pending || !!review || needsRefresh} className="flex flex-wrap items-end gap-3 flex-1">
+      <fieldset disabled={pending || !!review || needsRefresh || refreshing} className="flex flex-wrap items-end gap-3 flex-1">
         <div className="min-w-28 flex-1">
           <label htmlFor={`role-${userId}`} className="mb-1 block text-xs font-medium">Role</label>
           <select id={`role-${userId}`} name="role" value={current.role} onChange={event => setChoice({ ...current, role: event.target.value as Role })} className={fieldClass}>
@@ -195,7 +196,7 @@ export function MembershipEditor({ organizationId, userId, role, active, revisio
         <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => { setReview(null); setChoice(null); }}>Cancel</Button>
       </div>}
       {needsRefresh && <div className="w-full space-y-2"><p className="text-xs">Review the refreshed membership before making another change. If the outcome is uncertain, reconcile with an authorized operator.</p>
-        <Button type="button" size="sm" onClick={() => { router.refresh(); setChoice(null); setNeedsRefresh(false); }}>Review current membership</Button>
+        <Button type="button" size="sm" isLoading={refreshing} onClick={() => { startRefresh(() => { router.refresh(); setChoice(null); setNeedsRefresh(false); }); }}>Review current membership</Button>
       </div>}
       <Feedback message={message} success={success} />
     </form>

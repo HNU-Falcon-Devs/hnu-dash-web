@@ -13,7 +13,7 @@ export type Outcome<S extends string> = { status: S; replayed: boolean; retryAft
 const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 const exact = (v: Record<string, unknown>, keys: string[]) => Object.keys(v).length === keys.length && keys.every(k => Object.hasOwn(v, k));
 export function isRevision(v: unknown): v is string {
-  return typeof v === "string" && /^[1-9][0-9]{0,18}$/.test(v) && BigInt(v) <= 9223372036854775807n;
+  return typeof v === "string" && /^[1-9][0-9]{0,18}$/.test(v) && BigInt(v) <= BigInt("9223372036854775807");
 }
 export function normalizedEmail(v: unknown): string | null {
   if (typeof v !== "string" || v.length > 1024) return null;
@@ -29,7 +29,7 @@ export function validAssignment(v: unknown): v is AssignmentInput {
 const deadline = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(v) && Number.isFinite(Date.parse(v));
 const tokenShape = (v: unknown): v is string => typeof v === "string" && v.length <= 512 && /^v1\.[A-Za-z0-9_-]{1,64}\.[0-9a-f-]{36}\.[0-9a-f-]{36}\.\d{1,12}\.\d{1,12}\.\d{1,12}\.[0-9a-f]{64}$/.test(v);
 export function validIntent(v: unknown): v is Intent {
-  if (!record(v) || !validAssignment(v) || !isUuid(v.requestId) || !tokenShape(v.token) || !deadline(v.executeBefore) || !deadline(v.replayBefore)) return false;
+  if (!validAssignment(v) || !("requestId" in v) || !("token" in v) || !("executeBefore" in v) || !("replayBefore" in v) || !isUuid(v.requestId) || !tokenShape(v.token) || !deadline(v.executeBefore) || !deadline(v.replayBefore)) return false;
   const fields = v.token.split(".");
   return isUuid(fields[2]) && fields[3] === v.requestId &&
     Number(fields[5]) === Number(fields[4]) + 300 && Number(fields[6]) === Number(fields[4]) + 2592000 &&
@@ -60,7 +60,7 @@ function parseOutcome<S extends string>(v: unknown, statuses: readonly S[], org:
     if (!snapshot(v.membership) || v.membership.organization_id.toLowerCase() !== org.toLowerCase() ||
         (update && v.membership.user_id.toLowerCase() !== update.userId.toLowerCase())) return { status: "unknown" };
     if (update && s !== "state_conflict" && (v.membership.role !== update.role || v.membership.active !== update.active ||
-        BigInt(v.membership.revision) !== BigInt(update.revision) + (s === "updated" ? 1n : 0n))) return { status: "unknown" };
+        BigInt(v.membership.revision) !== BigInt(update.revision) + BigInt(s === "updated" ? 1 : 0))) return { status: "unknown" };
   } else if (v.membership !== null) return { status: "unknown" };
   if (s === "rate_limited") {
     if (typeof v.retry_after_seconds !== "number" || !Number.isSafeInteger(v.retry_after_seconds) || v.retry_after_seconds <= 0) return { status: "unknown" };
