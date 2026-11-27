@@ -155,11 +155,11 @@ function validReceipt(c:FixtureContext,req:Request,data:unknown):Row|null {
   return r;
 }
 
-export type SessionState={ pending:Request|null; receipt:Row|null; closedAt:string|null; lost:boolean };
+export type SessionState={ pending:Request|null; receipt:Row|null; closureReceipt:Row|null; closedAt:string|null; lost:boolean };
 // Keep this instance above the mounted panel. An unknown/lost session must be
 // explicitly marked lost by the harness; never create a replacement request.
 export function fixtureSession(c:FixtureContext,mode:"new-fixture"|"lost-session"):SessionState {
-  return {pending:null,receipt:null,closedAt:c.closed_at,lost:mode==="lost-session"};
+  return {pending:null,receipt:null,closureReceipt:null,closedAt:c.closed_at,lost:mode==="lost-session"};
 }
 export function createManager(c:FixtureContext,t:Transport,session:SessionState) {
   let busy=false;
@@ -180,7 +180,7 @@ export function createManager(c:FixtureContext,t:Transport,session:SessionState)
       if(result.error) return result.error.code==="23505"?"Immutable conflict. Reconcile with support; do not replace the request.":"Backend did not confirm. Exact retry only.";
       const receipt=validReceipt(scope,req,result.data);
       if(!receipt) return "Malformed acknowledgement. Exact retry only.";
-      if(req.name==="close_event_v2") session.closedAt=receipt.closed_at as string;
+      if(req.name==="close_event_v2") {session.closedAt=receipt.closed_at as string;session.closureReceipt=receipt;}
       session.receipt=receipt;
       // Even successful receipts are historical. Always read current state.
       snapshot=await readSnapshot(scope,t,firstPage);
