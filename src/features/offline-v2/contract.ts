@@ -171,6 +171,16 @@ export function withinBounds(c: Pick<Claim,"hard_start"|"hard_end"|"received_at"
   return t!==null&&t>=utc(c.hard_start)!&&t<utc(c.hard_end)!&&t<=utc(c.received_at)!&&
     (c.plausible_start===null||(t>=utc(c.plausible_start)!&&t<=utc(c.plausible_end)!));
 }
+function validClock(v:unknown):boolean {
+  const r=obj(v);
+  if(!r||Object.keys(r).length!==10) return false;
+  return ["anchor_request_elapsed_ms","anchor_response_elapsed_ms","qr_elapsed_ms","confirmation_elapsed_ms"]
+    .every(k=>r[k]===null||typeof r[k]==="number"&&Number.isSafeInteger(r[k]))&&
+    ["qr_wall_at","confirmation_wall_at"].every(k=>optionalTime(r[k]))&&
+    ["anchor_boot_marker","capture_boot_marker"].every(k=>r[k]===null||typeof r[k]==="string"&&/^[A-Za-z0-9_-]{1,128}$/.test(r[k]))&&
+    oneOf(r.anchor_provenance,["original","replayed","missing","unknown"])&&
+    oneOf(r.anomaly,["none","missing","reboot","clock_jump","inconsistent","other"]);
+}
 export function parseClaim(v:unknown,c:FixtureContext):Claim|null {
   const r=obj(v);
   if (!r||r.event_id!==c.event_id||!uuid(r.capture_id)||!uuid(r.preparation_id)||
@@ -178,10 +188,12 @@ export function parseClaim(v:unknown,c:FixtureContext):Claim|null {
     !instant(r.received_at)||!instant(r.hard_start)||!instant(r.hard_end)||
     !optionalTime(r.plausible_start)||!optionalTime(r.plausible_end)||
     ((r.plausible_start===null)!==(r.plausible_end===null))||
-    !oneOf(r.initial_disposition,["eligible","rejected","exception"])||!text(r.timing_basis)||
+    !oneOf(r.initial_disposition,["eligible","rejected","exception"])||!oneOf(r.timing_basis,["uncertain_provenance","empty_hard_interval","invalid_elapsed_sequence","timestamp_overflow",
+      "wall_elapsed_inconsistent","reliable_outside_bounds","partial_boundary_overlap","ordinary_interval","outside_frozen_roster"])||
     !optionalTime(r.validated_capture_at)||!optionalTime(r.normalized_at)||!bool(r.provisional_winner)||
-    !optionalUuid(r.final_receipt_id)||!obj(r.clock_payload)) return null;
+    !optionalUuid(r.final_receipt_id)||!validClock(r.clock_payload)) return null;
   const a=r as Claim;
+  if (a.initial_disposition==="eligible"&&a.timing_basis!=="ordinary_interval") return null;
   if (a.plausible_start!==null&&timeOrder(a.plausible_start,a.plausible_end!)>0) return null;
   if ((a.initial_disposition==="eligible")!==(a.validated_capture_at!==null)||
     (a.validated_capture_at!==null&&!withinBounds(a,a.validated_capture_at))) return null;
