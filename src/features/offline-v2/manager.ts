@@ -155,11 +155,12 @@ function validReceipt(c:FixtureContext,req:Request,data:unknown):Row|null {
   return r;
 }
 
-export type SessionState={ pending:Request|null; receipt:Row|null; closureReceipt:Row|null; closedAt:string|null; lost:boolean };
+type PendingOutcome = "ambiguous"|"conflict"|"denied";
+export type SessionState={ pending:Request|null; pendingOutcome:PendingOutcome|null; dispatching:boolean; receipt:Row|null; closureReceipt:Row|null; closedAt:string|null; lost:boolean };
 // Keep this instance above the mounted panel. An unknown/lost session must be
 // explicitly marked lost by the harness; never create a replacement request.
 export function fixtureSession(c:FixtureContext,mode:"new-fixture"|"lost-session"):SessionState {
-  return {pending:null,receipt:null,closureReceipt:null,closedAt:c.closed_at,lost:mode==="lost-session"};
+  return {pending:null,pendingOutcome:null,dispatching:false,receipt:null,closureReceipt:null,closedAt:c.closed_at,lost:mode==="lost-session"};
 }
 export function createManager(c:FixtureContext,t:Transport,session:SessionState) {
   let busy=false;
@@ -172,12 +173,51 @@ export function createManager(c:FixtureContext,t:Transport,session:SessionState)
     try{snapshot=await readSnapshot(scope,t,offsets);return snapshot;}catch{return null;}finally{busy=false;}
   }
   async function dispatch(req:Request):Promise<string> {
+    if(session.dispatching) return "Original request still in flight. Wait for its outcome; no replacement allowed.";
+    session.dispatching=true;
+    const priorUnresolved=session.pendingOutcome!==null;
+    const previousOffsets=snapshot?.offsets??firstPage;
     busy=true;snapshot=null;
     try {
-      if(!await t.verify(scope)) return "Identity or manager scope changed. No further action.";
+      if(!await t.verify(scope)) {
+        if(priorUnresolved) {
+          session.pendingOutcome="denied";
+          return "Authorization denied. Prior outcome unconfirmed; retain the exact request and restore scope or escalate.";
+        }
+        // No RPC was dispatched.
+        session.pending=null;session.pendingOutcome=null;
+        return "Authorization denied before dispatch. No request sent. Refresh after restoring scope.";
+      }
+      // Set uncertainty before dispatch, including exceptions or lost responses.
+      session.pendingOutcome="ambiguous";
       const result=await t.rpc(req.name,structuredClone(req.args));
-      if(!await t.verify(scope)) return "Identity changed; outcome unconfirmed.";
-      if(result.error) return result.error.code==="23505"?"Immutable conflict. Reconcile with support; do not replace the request.":"Backend did not confirm. Exact retry only.";
+      if(!await t.verify(scope)) {
+        session.pendingOutcome="denied";
+        return "Identity or manager scope changed; outcome unconfirmed. Restore scope or escalate; retain the exact request.";
+      }
+      if(result.error) {
+        const code=result.error.code;
+        if(code==="23505") {
+          session.pendingOutcome="conflict";
+          return "Immutable conflict. Reconcile with support; do not replace the request.";
+        }
+        if(code==="22023"||code==="55000"||code==="42501") {
+          // B1/B2 atomic RPC rejection proves non-persistence of THIS dispatch,
+          // not of a previous ambiguous attempt. A read alone proves neither.
+          if(priorUnresolved) {
+            session.pendingOutcome=code==="42501"?"denied":"ambiguous";
+            return code==="42501"
+              ?"Authorization denied; prior outcome unconfirmed. Restore scope or escalate; retain the exact request."
+              :"Backend rejected this retry; prior outcome unconfirmed. Exact retry or support only.";
+          }
+          session.pending=null;session.pendingOutcome=null;
+          if(code==="42501") return "Authorization denied. Initial request rejected; refresh after restoring scope.";
+          // Fresh scoped evidence is required before any corrected submission.
+          try {snapshot=await readSnapshot(scope,t,previousOffsets);}catch{snapshot=null;}
+          return "Backend rejected the initial request; no write persisted. Review refreshed evidence before a corrected submission.";
+        }
+        return "Backend did not confirm. Exact retry only.";
+      }
       const receipt=validReceipt(scope,req,result.data);
       if(!receipt) return "Malformed acknowledgement. Exact retry only.";
       if(req.name==="close_event_v2") {session.closedAt=receipt.closed_at as string;session.closureReceipt=receipt;}
@@ -197,9 +237,12 @@ export function createManager(c:FixtureContext,t:Transport,session:SessionState)
         req.name==="confirm_offline_reconciliation_v2"&&!snapshot.summary.reconciliation_confirmed) {
         snapshot=null;return "Receipt and current summary disagree. Exact retry only.";
       }
-      session.pending=null;
+      session.pending=null;session.pendingOutcome=null;
       return "Backend confirmed operation; refreshed current evidence.";
-    } catch {return "Outcome unconfirmed. Exact retry only.";}finally{busy=false;}
+    } catch {
+      session.pendingOutcome??="ambiguous";
+      return "Outcome unconfirmed. Exact retry only.";
+    }finally{busy=false;session.dispatching=false;}
   }
   return {
     context:scope,session,refresh,
@@ -225,13 +268,17 @@ export function createManager(c:FixtureContext,t:Transport,session:SessionState)
         if(!row) return unavailable;
         operation={...operation,claim:row};
       }
+      // A remounted panel may share this session while its previous manager
+      // is still awaiting evidence or a write. Never replace its pending intent.
+      if(session.pending||session.dispatching||session.lost) return "Action blocked. Unresolved requests cannot be replaced.";
       const req=makeRequest(scope,snapshot.summary,operation,now,session.closedAt);
       if(!req) return "Invalid operation or current lifecycle does not permit it.";
-      session.pending=req;session.receipt=null;
+      session.pending=req;session.pendingOutcome=null;session.receipt=null;
       return dispatch(req);
     },
     async retry(confirmed:boolean):Promise<string> {
       if(busy||!confirmed||session.lost||!session.pending) return "No confirmed exact retry available.";
+      if(session.pendingOutcome==="conflict") return "Immutable conflict. Reconcile with support; do not replace the request.";
       return dispatch(session.pending);
     }
   };

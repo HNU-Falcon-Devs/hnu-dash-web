@@ -233,6 +233,9 @@ export function parseResult(v:unknown,c:FixtureContext,s:Summary):FinalResult|nu
   if (!r||s.event_state!=="FINALIZED"||r.event_id!==c.event_id||!student(r.student_id)||
     !oneOf(r.status,["PRESENT","INCOMPLETE","ABSENT"])||r.required_checkpoint_count!==c.checkpoints.length||
     !count(r.accepted_checkpoint_count)||r.accepted_checkpoint_count>c.checkpoints.length) return null;
+  // Validate Backend's verdict; never replace it with a locally computed result.
+  if ((r.status==="PRESENT")!==(r.accepted_checkpoint_count===r.required_checkpoint_count)||
+    (r.status==="ABSENT")!==(r.accepted_checkpoint_count===0)) return null;
   return r as FinalResult;
 }
 export function parsePage<T>(v:unknown,parse:(v:unknown)=>T|null,key:(r:T)=>string,compare:(a:T,b:T)=>number):T[]|null {

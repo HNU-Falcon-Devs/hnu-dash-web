@@ -164,6 +164,7 @@ describe("fixture-only manager interactions",()=>{
     render(<FixtureOrganizer manager={h.manager}/>);
     expect(screen.queryByRole("form",{name:"Close event manually"})).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button",{name:"Refresh authoritative evidence"}));
+    fireEvent.click(await screen.findByRole("button",{name:"Open closure dialog"}));
     const form=await screen.findByRole("form",{name:"Close event manually"});
     const input=within(form).getByRole("textbox",{name:"Effective start Entry"});
     const button=within(form).getByRole("button",{name:"Close event manually"});
@@ -174,6 +175,131 @@ describe("fixture-only manager interactions",()=>{
     fireEvent.change(input,{target:{value:context.checkpoints[0].opens_at}});
     expect(within(form).queryByRole("alert")).not.toBeInTheDocument();
     expect(h.mutate).not.toHaveBeenCalled();
+  });
+  it("keeps authoritative page/filter after rejected multi-page action",async()=>{
+    const h=harness(context,{...syncing,sealed:true,submitted_claims:201,pending_exceptions:201});
+    // The mock returns the requested page; original exceptions remain filterable.
+    const pageOne=Array.from({length:200},(_,i)=>({...exception,capture_id:"77777777-7777-4777-8777-"+String(i).padStart(12,"0")}));
+    const pageTwo=[{...exception,capture_id:"77777777-7777-4777-8777-999999999999"}];
+    const original=h.rpc.getMockImplementation()!;
+    h.rpc.mockImplementation(async(name,args)=>name==="get_event_offline_claims_v2"
+      ?{data:args.p_offset===200?pageTwo:pageOne,error:null}:original(name,args));
+    await h.manager.refresh({...firstPage,claims:200,exceptionsOnly:true});
+    render(<FixtureOrganizer manager={h.manager}/>);
+    const nav=screen.getByRole("navigation",{name:"claims pagination"});
+    expect(within(nav).getByText(/Page 2; 1 rows/)).toBeInTheDocument();
+    const form=screen.getByRole("form",{name:"Review exception "+pageTwo[0].capture_id});
+    fireEvent.change(within(form).getByRole("combobox",{name:"Individual decision"}),{target:{value:"reject"}});
+    fireEvent.change(within(form).getByRole("textbox",{name:"Reason"}),{target:{value:"Synthetic reason"}});
+    fireEvent.click(within(form).getByRole("checkbox",{name:/explicitly confirm/}));
+    fireEvent.submit(form);
+    await screen.findByText(/initial request; no write persisted/);
+    const returnedNav=screen.getByRole("navigation",{name:"claims pagination"});
+    expect(within(returnedNav).getByText(/Page 2; 1 rows/)).toBeInTheDocument();
+    expect(screen.getByRole("checkbox",{name:"Original exceptions only"})).toBeChecked();
+    expect(within(returnedNav).getByRole("button",{name:"Previous claims"})).toBeEnabled();
+    expect(h.mutate).toHaveBeenCalledTimes(1);
+  });
+  it("closure dialog supports cancellation, keyboard trapping and focus restoration",async()=>{
+    const h=harness();await h.manager.refresh();
+    render(<FixtureOrganizer manager={h.manager}/>);
+    const opener=screen.getByRole("button",{name:"Open closure dialog"});
+    opener.focus();fireEvent.click(opener);
+    const dialog=screen.getByRole("dialog",{name:"Confirm event closure"});
+    const closeModal=within(dialog).getByRole("button",{name:"Close modal"});
+    const cancel=within(dialog).getByRole("button",{name:"Cancel closure"});
+    expect(closeModal).toHaveFocus();
+    fireEvent.keyDown(window,{key:"Tab",shiftKey:true});expect(cancel).toHaveFocus();
+    fireEvent.keyDown(window,{key:"Tab"});expect(closeModal).toHaveFocus();
+    fireEvent.keyDown(window,{key:"Escape"});
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();expect(opener).toHaveFocus();
+    fireEvent.click(opener);fireEvent.click(screen.getByRole("button",{name:"Cancel closure"}));
+    expect(opener).toHaveFocus();expect(h.mutate).not.toHaveBeenCalled();
+  });
+  it("closure submission moves focus to loading and outcome, with explicit confirmation",async()=>{
+    const h=harness();await h.manager.refresh();
+    let resolve!:(v:{data:unknown;error:{code?:string}|null})=>void;
+    h.mutate.mockImplementationOnce(()=>new Promise(done=>{resolve=done;}));
+    render(<FixtureOrganizer manager={h.manager}/>);
+    fireEvent.click(screen.getByRole("button",{name:"Open closure dialog"}));
+    const form=screen.getByRole("form",{name:"Close event manually"});
+    fireEvent.click(within(form).getByRole("checkbox",{name:/acknowledge closure may/}));
+    fireEvent.change(within(form).getByRole("textbox",{name:"Reason"}),{target:{value:"Synthetic closure"}});
+    fireEvent.click(within(form).getByRole("checkbox",{name:/explicitly confirm/}));
+    fireEvent.submit(form);
+    await waitFor(()=>expect(h.mutate).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByText("Loading scoped evidence…")).toHaveFocus();
+    await act(async()=>resolve({data:null,error:{code:"22023"}}));
+    expect(await screen.findByText(/initial request; no write persisted/)).toHaveFocus();
+    expect(screen.getByRole("button",{name:"Open closure dialog"})).toBeEnabled();
+  });
+  it.each(["22023","55000","42501"])("initial deterministic %s rejection permits a corrected request only after scoped refresh",async(code)=>{
+    const h=harness();await h.manager.refresh();
+    h.mutate.mockResolvedValueOnce({data:null,error:{code}});
+    expect(await h.manager.submit(close,true,late)).toMatch(/rejected/i);
+    expect(h.session.pending).toBeNull();expect(h.session.pendingOutcome).toBeNull();
+    await h.manager.refresh();
+    h.mutate.mockImplementationOnce(async(_name,args)=>{h.setSummary(syncing);return {data:closeReceipt(args,false),error:null};});
+    expect(await h.manager.submit({...close,why:"Corrected"},true,late)).toMatch(/Backend confirmed/);
+    expect(h.mutate.mock.calls[1][1].p_request_id).not.toBe(h.mutate.mock.calls[0][1].p_request_id);
+  });
+  it.each(["22023","55000","42501","23505"])("preserves earlier ambiguous request after retry returns %s",async(code)=>{
+    const h=harness();await h.manager.refresh();
+    h.mutate.mockRejectedValueOnce(Error("response lost"));
+    expect(await h.manager.submit(close,true,late)).toMatch(/unconfirmed/i);
+    const pending=structuredClone(h.session.pending);
+    h.mutate.mockResolvedValueOnce({data:null,error:{code}});
+    await h.manager.retry(true);
+    expect(h.session.pending).toEqual(pending);
+    expect(h.mutate.mock.calls[1]).toEqual(h.mutate.mock.calls[0]);
+    expect(h.session.pendingOutcome).toBe(code==="23505"?"conflict":code==="42501"?"denied":"ambiguous");
+    await h.manager.refresh();
+    expect(await h.manager.submit({...close,why:"Replacement"},true,late)).toMatch(/blocked/i);
+    expect(h.session.pending).toEqual(pending);
+    if(code==="23505") {
+      expect(await h.manager.retry(true)).toMatch(/conflict/i);
+      expect(h.mutate).toHaveBeenCalledTimes(2);
+    }
+  });
+  it("retains ambiguous request on lost authorization before a retry and accepts exact replay after restoration",async()=>{
+    const h=harness();await h.manager.refresh();
+    h.mutate.mockImplementationOnce(async()=>{h.setSummary(syncing);throw Error("response lost");});
+    await h.manager.submit(close,true,late);
+    const pending=structuredClone(h.session.pending);
+    h.verify.mockResolvedValue(false);
+    expect(await h.manager.retry(true)).toMatch(/denied/i);
+    expect(h.session.pending).toEqual(pending);expect(h.mutate).toHaveBeenCalledTimes(1);
+    h.verify.mockResolvedValue(true);
+    h.mutate.mockImplementationOnce(async(_name,args)=>({data:closeReceipt(args,true),error:null}));
+    expect(await h.manager.retry(true)).toMatch(/Backend confirmed/);
+    expect(h.mutate.mock.calls[1]).toEqual(h.mutate.mock.calls[0]);
+    expect(h.session.pending).toBeNull();
+  });
+  it("prevents concurrent exact retry from a remounted manager sharing the session",async()=>{
+    const h=harness();await h.manager.refresh();
+    let resolve!:(v:{data:unknown;error:{code?:string}|null})=>void;
+    h.mutate.mockImplementationOnce(()=>new Promise(done=>{resolve=done;}));
+    const first=h.manager.submit(close,true,late);
+    await waitFor(()=>expect(h.mutate).toHaveBeenCalledTimes(1));
+    const pending=structuredClone(h.session.pending);
+    const remounted=createManager(context,h.transport,h.session);
+    expect(await remounted.retry(true)).toMatch(/still in flight/i);
+    expect(h.mutate).toHaveBeenCalledTimes(1);expect(h.session.pending).toEqual(pending);
+    resolve({data:null,error:{code:"40001"}});await first;
+    expect(h.session.pending).toEqual(pending);expect(h.session.dispatching).toBe(false);
+  });
+  it("keeps a first-dispatch immutable conflict for support without replacement",async()=>{
+    const h=harness();await h.manager.refresh();
+    h.mutate.mockResolvedValueOnce({data:null,error:{code:"23505"}});
+    expect(await h.manager.submit(close,true,late)).toMatch(/immutable conflict/i);
+    const pending=structuredClone(h.session.pending);
+    expect(h.session.pendingOutcome).toBe("conflict");
+    await h.manager.refresh();
+    expect(await h.manager.submit({...close,why:"Replacement"},true,late)).toMatch(/blocked/i);
+    expect(h.session.pending).toEqual(pending);
+    expect(await h.manager.retry(true)).toMatch(/conflict/i);
+    expect(h.mutate).toHaveBeenCalledTimes(1);
   });
   it("one explicit finalization dispatch with pending feedback and no optimistic result",async()=>{
     const h=harness(context,{...ready,reconciliation_confirmed:true,can_finalize:true});

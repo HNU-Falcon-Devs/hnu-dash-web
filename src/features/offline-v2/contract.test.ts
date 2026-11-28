@@ -54,6 +54,17 @@ describe("policy 2 pinned contracts",()=>{
     expect(parseClaim({...exception,initial_disposition:"rejected",decision:"approve"},context)).toBeNull();
     expect(parseClaim({...exception,event_id:ORG},context)).toBeNull();
   });
+  it("rejects contradictory finalized status and checkpoint counts without substituting a verdict",()=>{
+    const summary=parseSummary({...ready,event_state:"FINALIZED",reconciliation_confirmed:true,
+      finalized_at:cutoff,finalized_by:ACTOR,finalized_records:1},EVENT)!;
+    const base={event_id:EVENT,student_id:"000001",required_checkpoint_count:2};
+    for(const [accepted,status] of [[0,"PRESENT"],[1,"PRESENT"],[2,"ABSENT"],[0,"INCOMPLETE"],[2,"INCOMPLETE"],[1,"ABSENT"]] as const)
+      expect(parseResult({...base,accepted_checkpoint_count:accepted,status},context,summary)).toBeNull();
+    for(const [accepted,status] of [[0,"ABSENT"],[1,"INCOMPLETE"],[2,"PRESENT"]] as const) {
+      const row={...base,accepted_checkpoint_count:accepted,status};
+      expect(parseResult(row,context,summary)).toEqual(row);
+    }
+  });
   it("rejects oversized and duplicate pages, mixed finalization and premature results",()=>{
     expect(parsePage([prep,prep],parsePreparation,r=>r.assignment_id,()=>0)).toBeNull();
     expect(parsePage(Array(201).fill(prep),parsePreparation,r=>r.assignment_id,()=>0)).toBeNull();

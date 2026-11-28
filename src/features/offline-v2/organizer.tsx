@@ -1,8 +1,9 @@
 "use client";
 
-import { useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Modal } from "@/components/ui/modal";
 import { BASIS, LOSS, PAGE_SIZE, addHours, changedWindows, normalizeWindows, overlaps, utc, withinBounds,
   type Claim, type FixtureContext, type Preparation, type Window } from "./contract";
 import { firstPage, type Manager, type Operation, type PageOffsets } from "./manager";
@@ -124,12 +125,23 @@ function Organizer({manager}:{manager:Manager}) {
   const [offsets,setOffsets]=useState<PageOffsets>(()=>manager.current()?.offsets??firstPage);
   const [busy,setBusy]=useState(false);
   const [message,setMessage]=useState("");
+  const [closureOpen,setClosureOpen]=useState(false);
+  const closeDialog=useCallback(()=>setClosureOpen(false),[]);
+  const statusRef=useRef<HTMLParagraphElement>(null);
   const locked=useRef(false);
+  // The active form is removed while loading. Keep a stable focus destination
+  // for both the pending and result states, rather than losing focus to body.
+  useEffect(()=>{if(busy||message) statusRef.current?.focus();},[busy,message]);
   const c=manager.context;
   async function run(action:()=>Promise<string>) {
     if(locked.current) return;
     locked.current=true;setBusy(true);setMessage("");setView(null);
-    try {setMessage(await action());setView(manager.current());}
+    try {
+      setMessage(await action());
+      const next=manager.current();
+      if(next) setOffsets(next.offsets);
+      setView(next);
+    }
     catch {setMessage("Unconfirmed operation. Reload scoped evidence.");}
     finally {locked.current=false;setBusy(false);}
   }
@@ -138,7 +150,7 @@ function Organizer({manager}:{manager:Manager}) {
     void run(async()=>await manager.refresh(next)?"Authoritative scoped evidence refreshed.":"Evidence unavailable, denied or changed. No actions available.");
   }
   function submit(operation:Operation) {
-    setOffsets(firstPage);
+    closeDialog();
     void run(()=>manager.submit(operation,true));
   }
   const s=view?.summary;
@@ -147,13 +159,17 @@ function Organizer({manager}:{manager:Manager}) {
     <Card><CardHeader><CardTitle>{c.title} — Policy 2 fixture</CardTitle></CardHeader><CardContent className="space-y-3">
       <p>Fixture-only. Not an operational event route or institutional attendance. The Backend owns all authorization and state.</p>
       <Button type="button" size="sm" disabled={busy} onClick={()=>refresh(offsets)}>Refresh authoritative evidence</Button>
-      {busy&&<p role="status">Loading scoped evidence…</p>}
-      {message&&<p role="status" aria-live="polite">{message}</p>}
+      <p ref={statusRef} tabIndex={-1} role="status" aria-live="polite">{busy?"Loading scoped evidence…":message}</p>
       {manager.session.lost&&<p role="alert">Session state lost. Reconcile with support before any new action.</p>}
-      {manager.session.pending&&<ExplicitForm label="Retry exact request" disabled={busy||manager.session.lost}
-        onSubmit={()=>{setOffsets(firstPage);void run(()=>manager.retry(true));}}>
-        <p role="alert">Unconfirmed request retained. No replacement request or new operation is allowed.</p>
-      </ExplicitForm>}
+      {manager.session.pending&&<div>
+        <p role="alert">{manager.session.pendingOutcome==="conflict"
+          ?"Immutable conflict. Original request retained; reconcile with support. No replacement allowed."
+          :manager.session.pendingOutcome==="denied"
+            ?"Authorization denied; prior outcome unconfirmed. Restore scope or escalate. No replacement allowed."
+            :"Unconfirmed request retained. No replacement request or new operation is allowed."}</p>
+        {manager.session.pendingOutcome!=="conflict"&&<ExplicitForm label="Retry exact request" disabled={busy||manager.session.lost}
+          onSubmit={()=>{void run(()=>manager.retry(true));}}/>}
+      </div>}
       {manager.session.closureReceipt&&manager.session.closureReceipt.closed_at!==undefined&&
         <p>Historical closure receipt: {String(manager.session.closureReceipt.closed_at)}; initial deadline: {String(manager.session.closureReceipt.initial_sync_deadline)}. Current state comes from refreshed summary.</p>}
     </CardContent></Card>
@@ -164,7 +180,15 @@ function Organizer({manager}:{manager:Manager}) {
         <p>Known preparations: {s.known_preparations}; accounted: {s.accounted_preparations}; completed: {s.completed_preparations}; loss-accounted: {s.loss_accounted_preparations}; unused assignments: {s.unused_assignments}.</p>
         <p>Submitted claims: {s.submitted_claims}; eligible: {s.eligible_claims}; rejected: {s.rejected_claims}; pending exceptions: {s.pending_exceptions}; provisional winners: {s.provisional_winners}.</p>
         <p>Known preparations are not all devices; received claims are not official attendance. No timer closes, seals or finalizes.</p>
-        {s.event_state==="OPEN"&&<CloseForm context={c} submit={submit} disabled={blocked}/>}
+        {s.event_state==="OPEN"&&<>
+          <Button type="button" size="sm" disabled={blocked} onClick={()=>setClosureOpen(true)}>Open closure dialog</Button>
+          <Modal isOpen={closureOpen&&!blocked} onClose={closeDialog} title="Confirm event closure"
+            description="Review all frozen windows before explicitly closing this event." maxWidth="xl"
+            className="max-h-[90vh] overflow-y-auto">
+            <CloseForm context={c} submit={submit} disabled={blocked}/>
+            <Button type="button" variant="outline" size="sm" onClick={closeDialog}>Cancel closure</Button>
+          </Modal>
+        </>}
         {s.event_state==="SYNCING"&&!s.sealed&&<>
           {c.role!=="admin"&&<ExplicitForm label="Extend synchronization deadline" disabled={blocked} onSubmit={data=>submit({
             kind:"extend",deadline:value(data,"deadline"),why:value(data,"why")
